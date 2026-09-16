@@ -36,7 +36,7 @@ def _blocking_zone(lat: float, lon: float):
 
 
 @timed
-def run(location: Location, when: datetime, count: int = 3) -> AgentResult:
+def run(location: Location, when: datetime, count: int = 6) -> AgentResult:
     stamp = when.isoformat(timespec="seconds")
     raw: List[Dict[str, Any]] = []
     mode = "DEMO"

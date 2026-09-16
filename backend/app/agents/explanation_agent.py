@@ -106,6 +106,29 @@ def build_evidence(weather: Dict, ocean: Dict, cyclone: Dict, gis: Dict,
     return rows
 
 
+def _pfz_summary(pfz: List[PFZZone], lang: Language) -> str:
+    """Summarise ranked PFZ candidates without implying INCOIS ranked them."""
+    if not pfz:
+        return ""
+    source = "INCOIS advisory geometries" if all(z.source == "INCOIS_WFS" for z in pfz) else "ORCA candidate data"
+    ranked = "; ".join(
+        f"#{z.rank} {z.distance_km} km {z.bearing}, SST {z.sst_c if z.sst_c is not None else '-'} deg C, "
+        f"chlorophyll {z.chlorophyll_mg_m3 if z.chlorophyll_mg_m3 is not None else '-'} mg/m3, "
+        f"confidence {int(z.confidence * 100)}%"
+        for z in pfz
+    )
+    if lang == "hi":
+        intro = f"{len(pfz)} संभावित मत्स्य क्षेत्र मिले"
+        method = f"आधार {source} है; ORCA ने दूरी, क्लोरोफिल और समुद्री स्थिति के आधार पर क्रम तय किया"
+    elif lang == "kn":
+        intro = f"{len(pfz)} ಸಂಭಾವ್ಯ ಮೀನುಗಾರಿಕೆ ಪ್ರದೇಶಗಳು ಸಿಕ್ಕಿವೆ"
+        method = f"ಆಧಾರ {source}; ದೂರ, ಕ್ಲೋರೊಫಿಲ್ ಮತ್ತು ಸಮುದ್ರದ ಸ್ಥಿತಿಯ ಆಧಾರದ ಮೇಲೆ ORCA ಕ್ರಮ ನೀಡಿದೆ"
+    else:
+        intro = f"Found {len(pfz)} potential fishing zones"
+        method = f"The source is {source}; ORCA ranked these candidates using distance, chlorophyll and sea state"
+    return f"{intro}. {method}. Ranked zones: {ranked}."
+
+
 @timed
 def run(*, intent, risk: Optional[RiskAssessment], pfz: List[PFZZone],
         routes: List[RouteOption], geofence: List, weather: Dict, ocean: Dict,
@@ -140,12 +163,7 @@ def run(*, intent, risk: Optional[RiskAssessment], pfz: List[PFZZone],
 
     # ---- fishing zones ---------------------------------------------------
     if pfz and intent.intent in ("find_pfz", "route"):
-        top = pfz[0]
-        parts.append(
-            f"{t('pfz_intro', lang)}: #{top.rank} — {top.distance_km} km {top.bearing}, "
-            f"SST {top.sst_c} deg C, chlorophyll {top.chlorophyll_mg_m3} mg/m3, "
-            f"confidence {int(top.confidence * 100)}%."
-        )
+        parts.append(_pfz_summary(pfz, lang))
         parts.append(t("pfz_note", lang))
 
     # ---- route -----------------------------------------------------------
