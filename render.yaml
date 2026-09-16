@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: orca-backend
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ORCA_CORS_ORIGINS
+        sync: false
+      - key: ORCA_DATA_MODE
+        value: LIVE
+      - key: ORCA_LIVE_TIMEOUT
+        value: "4.0"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ORCA_GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: COPERNICUS_USERNAME
+        sync: false
+      - key: COPERNICUS_PASSWORD
+        sync: false

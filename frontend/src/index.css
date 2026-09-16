@@ -1,0 +1,1445 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/spline-sans-mono";
+@import "@fontsource-variable/noto-serif-devanagari";
+@import "leaflet/dist/leaflet.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   ORCA MARINE INTELLIGENCE SYSTEM
+   Dark operational maritime console.
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+  --bg:           #050E18;
+  --surface:      #0A1929;
+  --surface-2:    #0F2236;
+  --surface-3:    #132A42;
+  --border:       rgba(0, 168, 204, 0.14);
+  --border-mid:   rgba(0, 168, 204, 0.28);
+  --border-strong:rgba(0, 168, 204, 0.48);
+  --ocean:        #00A8CC;
+  --ocean-bright: #00E5FF;
+  --ocean-dim:    #007A96;
+  --text-bright:  #E8F4F8;
+  --text-mid:     #8BAFC4;
+  --text-dim:     #4A6E85;
+  --text-faint:   #2E4A5E;
+  --risk-low:     #22C55E;
+  --risk-mod:     #F59E0B;
+  --risk-high:    #F97316;
+  --risk-ext:     #EF4444;
+  --emergency:    #EF4444;
+  --rule:         rgba(0, 168, 204, 0.14);
+  --rule-strong:  rgba(0, 168, 204, 0.48);
+  --rule-faint:   rgba(0, 168, 204, 0.08);
+  /* Legacy aliases used by existing component inline styles */
+  --chart-teal:   #00A8CC;
+  --paper:        #0A1929;
+  --paper-bright: #0F2236;
+  --ink:          #E8F4F8;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg:           #F8FAFC;
+  --surface:      #FFFFFF;
+  --surface-2:    #F1F5F9;
+  --surface-3:    #E2E8F0;
+  --border:       rgba(148, 163, 184, 0.2);
+  --border-mid:   rgba(148, 163, 184, 0.3);
+  --border-strong:rgba(148, 163, 184, 0.5);
+  --ocean:        #0284C7;
+  --ocean-bright: #0369A1;
+  --ocean-dim:    #0EA5E9;
+  --text-bright:  #0F172A;
+  --text-mid:     #475569;
+  --text-dim:     #64748B;
+  --text-faint:   #94A3B8;
+  --risk-low:     #16A34A;
+  --risk-mod:     #CA8A04;
+  --risk-high:    #EA580C;
+  --risk-ext:     #DC2626;
+  --emergency:    #DC2626;
+  --rule:         rgba(148, 163, 184, 0.2);
+  --rule-strong:  rgba(148, 163, 184, 0.5);
+  --rule-faint:   rgba(148, 163, 184, 0.1);
+  /* Legacy aliases used by existing component inline styles */
+  --chart-teal:   #0284C7;
+  --paper:        #FFFFFF;
+  --paper-bright: #F1F5F9;
+  --ink:          #0F172A;
+}
+
+/* ---- Reset + base ---- */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  font-family: "Inter", "Nirmala UI", system-ui, sans-serif;
+  color: var(--text-bright);
+  -webkit-font-smoothing: antialiased;
+  background:
+    /* Coordinate grid — fine horizontal lines */
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 168, 204, 0.04) 0 1px,
+      transparent 1px 80px
+    ),
+    /* Coordinate grid — fine vertical lines */
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 168, 204, 0.04) 0 1px,
+      transparent 1px 80px
+    ),
+    /* Ocean glow from bottom */
+    radial-gradient(ellipse 120% 50% at 50% 110%, rgba(0, 80, 110, 0.35), transparent),
+    var(--bg);
+}
+
+[data-theme="light"] body {
+  background:
+    /* Coordinate grid — fine horizontal lines */
+    repeating-linear-gradient(
+      0deg,
+      rgba(2, 132, 199, 0.03) 0 1px,
+      transparent 1px 80px
+    ),
+    /* Coordinate grid — fine vertical lines */
+    repeating-linear-gradient(
+      90deg,
+      rgba(2, 132, 199, 0.03) 0 1px,
+      transparent 1px 80px
+    ),
+    /* Ocean glow from bottom */
+    radial-gradient(ellipse 120% 50% at 50% 110%, rgba(2, 132, 199, 0.15), transparent),
+    var(--bg);
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Selection ---- */
+::selection {
+  background: rgba(0, 168, 204, 0.35);
+  color: var(--text-bright);
+}
+
+[data-theme="light"] ::selection {
+  background: rgba(2, 132, 199, 0.25);
+  color: var(--text-bright);
+}
+
+/* ---- Focus ---- */
+:focus-visible {
+  outline: 1.5px solid var(--ocean);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   KEYFRAMES (must live in CSS — Leaflet marker inline styles
+   reference ping2 and others by name)
+   ============================================================ */
+
+@keyframes ping2 {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes dashdrift {
+  to { stroke-dashoffset: -48; }
+}
+@keyframes needlesway {
+  0%, 100% { transform: rotate(-7deg); }
+  50%       { transform: rotate(6deg); }
+}
+@keyframes inkblink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(1.5px); }
+  50%       { transform: translateY(-2.5px); }
+}
+@keyframes roll {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50%       { transform: rotate(2deg); }
+}
+@keyframes wavecrawl {
+  to { background-position-x: -14px; }
+}
+@keyframes seadrift-a { to { background-position-x: -280px; } }
+@keyframes seadrift-b { to { background-position-x: 340px; } }
+@keyframes seadrift-c { to { background-position-x: -420px; } }
+@keyframes growx {
+  from { transform: scaleX(0); }
+}
+@keyframes popin {
+  0%   { transform: scale(0.7); }
+  70%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes stormspin {
+  to { transform: rotate(360deg); }
+}
+@keyframes travelx {
+  0%   { left: 0%; opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { left: calc(100% - 6px); opacity: 0; }
+}
+@keyframes swim {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  50%       { transform: translateX(-4px) rotate(-2.5deg); }
+}
+@keyframes schoolrun {
+  to { background-position-x: 620px; }
+}
+@keyframes sonar {
+  0%   { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes radar {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+@keyframes glowpulse {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(239,68,68,0.5); }
+  50%       { box-shadow: 0 0 22px 8px rgba(239,68,68,0.9); }
+}
+@keyframes risein {
+  0%   { transform: translateY(10px); }
+  100% { transform: translateY(0); }
+}
+@keyframes stampIn {
+  0%   { transform: scale(1.3) rotate(-5deg); }
+  60%  { transform: scale(0.96) rotate(-1.4deg); }
+  100% { transform: scale(1) rotate(-2deg); }
+}
+
+/* ---- CSS utility classes used directly by JS/JSX ---- */
+.compass-needle { transform-origin: 50% 50%; animation: needlesway 7s ease-in-out infinite; }
+.grow-x         { transform-origin: left center; animation: growx 0.9s cubic-bezier(0.25, 0.8, 0.3, 1); }
+.swim           { animation: swim 3.8s ease-in-out infinite; }
+.svg-swim       { transform-box: fill-box; transform-origin: center; animation: swim 3.8s ease-in-out infinite; }
+.svg-bob        { transform-box: fill-box; transform-origin: center; animation: bob 3.6s ease-in-out infinite; }
+.svg-ping       { transform-box: fill-box; transform-origin: center; animation: ping2 2.4s cubic-bezier(0,0,.2,1) infinite; }
+.popin          { animation: popin 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.m-popin        { animation: popin 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.storm-spin     { animation: stormspin 5s linear infinite; transform-origin: center; }
+.route-live     { animation: dashdrift 1.8s linear infinite; }
+.radius-drift   { animation: dashdrift 7s linear infinite reverse; }
+
+/* Entrance animations */
+.animate-rise      { animation: risein .35s ease-out both; }
+.animate-stampIn   { animation: stampIn .45s cubic-bezier(.2,.9,.3,1.2) both; }
+
+/* ---- Fish school (fixed to bottom) ---- */
+.fish-drift {
+  position: fixed;
+  inset: auto 0 0 0;
+  height: 60px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.15;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='620' height='90' viewBox='0 0 620 90' fill='%2300A8CC'%3E%3Cg opacity='0.5'%3E%3Cpath d='M40 30 C43 26 48 25.5 52 28.8 L58 26 C57 27.3 56.5 28.6 56.5 30 C56.5 31.4 57 32.7 58 34 L52 31.2 C48 34.5 43 34 40 30 Z'/%3E%3Cpath d='M70 44 C73 40 78 39.5 82 42.8 L88 40 C87 41.3 86.5 42.6 86.5 44 C86.5 45.4 87 46.7 88 48 L82 45.2 C78 48.5 73 48 70 44 Z'/%3E%3Cpath d='M52 60 C55 56 60 55.5 64 58.8 L70 56 C69 57.3 68.5 58.6 68.5 60 C68.5 61.4 69 62.7 70 64 L64 61.2 C60 64.5 55 64 52 60 Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 620px 90px;
+  animation: schoolrun 46s linear infinite;
+}
+
+/* ---- System page signals ---- */
+.pulse-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 1.5px solid currentColor;
+  animation: ping2 1.8s cubic-bezier(0,0,.2,1) infinite;
+}
+.pulse-dot--still::after {
+  animation: none;
+  opacity: 0.35;
+}
+
+.signal-line {
+  position: relative;
+  height: 1px;
+  background: var(--border-mid);
+  overflow: visible;
+}
+.signal-line > i {
+  position: absolute;
+  top: -2.5px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--ocean);
+}
+.signal-line > i:nth-child(1) { animation: travelx 2.6s linear infinite; }
+.signal-line > i:nth-child(2) { animation: travelx 2.6s linear infinite 0.9s; }
+.signal-line > i:nth-child(3) { animation: travelx 2.6s linear infinite 1.8s; }
+
+/* ---- Leaflet marker animations ---- */
+.leaflet-marker-icon .bob  { animation: bob 3.4s ease-in-out infinite; }
+.leaflet-marker-icon .roll { animation: roll 4.2s ease-in-out infinite; transform-origin: 50% 60%; }
+.leaflet-marker-icon .buoy { transition: transform 0.22s ease; }
+.leaflet-marker-icon:hover .buoy { transform: scale(1.12); }
+
+/* ---- Restricted zones: CSS chart hatching ---- */
+path.zone-hatch-critical { fill: url(#hatch-critical); fill-opacity: 1; }
+path.zone-hatch-warning  { fill: url(#hatch-warning);  fill-opacity: 1; }
+path.zone-hatch-info     { fill: url(#hatch-info);     fill-opacity: 1; }
+
+/* Storm tooltip */
+.leaflet-tooltip.storm-label {
+  background: #0A1929;
+  color: #EF4444;
+  border: 1.5px solid #EF4444;
+  border-radius: 2px;
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+}
+.leaflet-tooltip-top.storm-label::before { border-top-color: #EF4444; }
+
+[data-theme="light"] .leaflet-tooltip.storm-label {
+  background: #FFFFFF;
+  color: #DC2626;
+  border: 1.5px solid #DC2626;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+[data-theme="light"] .leaflet-tooltip-top.storm-label::before { border-top-color: #DC2626; }
+
+/* Geofence banner */
+.animate-rise { animation: risein 0.35s ease-out both; }
+
+/* Badge ping (map hover) */
+.badge-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2.5px solid currentColor;
+  opacity: 0;
+  pointer-events: none;
+}
+.group:hover .badge-ping { animation: ping2 1.5s cubic-bezier(0,0,.2,1) infinite; }
+
+/* ============================================================
+   COMPONENT LAYER
+   ============================================================ */
+@layer components {
+
+  /* ---- Core panels ---- */
+  .m-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    position: relative;
+  }
+  .m-panel-elevated {
+    background: var(--surface-2);
+    border: 1px solid var(--border-mid);
+    border-radius: 3px;
+    position: relative;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  .m-panel-accent {
+    background: var(--surface);
+    border: 1px solid var(--ocean-dim);
+    border-radius: 3px;
+    position: relative;
+  }
+
+  /* Panel header */
+  .m-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 14px 8px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,168,204,0.05), transparent);
+  }
+
+  /* Legacy panel — used by components not yet updated */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    position: relative;
+  }
+  .panel-tint {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+  .hd {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 14px 8px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,168,204,0.06), rgba(0,168,204,0.015));
+  }
+  .rule-double {
+    border-top: 2px solid var(--border-mid);
+  }
+
+  /* ---- Labels ---- */
+  .label {
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .m-label {
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* ---- Buttons ---- */
+  .btn-ocean {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: var(--ocean);
+    color: #020810;
+    border: none;
+    border-radius: 2px;
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+  .btn-ocean:hover:not(:disabled) {
+    background: var(--ocean-bright);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0,168,204,0.4);
+  }
+  .btn-ocean:active { transform: translateY(1px); }
+  .btn-ocean:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  [data-theme="light"] .btn-ocean {
+    color: #FFFFFF;
+  }
+  [data-theme="light"] .btn-ocean:hover:not(:disabled) {
+    box-shadow: 0 6px 20px rgba(2, 132, 199, 0.3);
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    background: transparent;
+    color: var(--ocean);
+    border: 1px solid var(--border-mid);
+    border-radius: 2px;
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: rgba(0,168,204,0.08);
+    border-color: var(--ocean);
+    transform: translateY(-1px);
+  }
+  .btn-ghost:active { transform: translateY(1px); }
+  .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  [data-theme="light"] .btn-ghost:hover:not(:disabled) {
+    background: rgba(2, 132, 199, 0.08);
+  }
+
+  /* Legacy btn-ink → maps to btn-ghost style for backward compat */
+  .btn-ink {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: var(--surface-2);
+    color: var(--text-bright);
+    border: 1px solid var(--border-mid);
+    border-radius: 2px;
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+  .btn-ink:hover:not(:disabled) {
+    background: var(--surface-3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .btn-ink:active { transform: translateY(1px); }
+  .btn-ink:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    background: transparent;
+    color: var(--text-mid);
+    border: 1px solid var(--border-mid);
+    border-radius: 2px;
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-line:hover:not(:disabled) {
+    background: rgba(0,168,204,0.1);
+    border-color: var(--ocean);
+    color: var(--ocean);
+  }
+
+  .btn-square {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    background: transparent;
+    color: var(--text-mid);
+    border: 1px solid var(--border-mid);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .btn-square:hover:not(:disabled) {
+    background: rgba(0,168,204,0.1);
+    border-color: var(--ocean);
+    color: var(--ocean);
+  }
+
+  /* Emergency / SOS button */
+  .btn-emergency {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: rgba(239,68,68,0.15);
+    color: #EF4444;
+    border: 1px solid rgba(239,68,68,0.5);
+    border-radius: 2px;
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-emergency:hover:not(:disabled) {
+    background: rgba(239,68,68,0.25);
+    border-color: rgba(239,68,68,0.8);
+    box-shadow: 0 0 16px rgba(239,68,68,0.3);
+    transform: translateY(-1px);
+  }
+  .btn-emergency:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ---- Chips ---- */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--surface-2);
+    color: var(--text-mid);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .chip:hover:not(:disabled) {
+    background: rgba(0,168,204,0.1);
+    border-color: var(--ocean);
+    color: var(--ocean);
+    transform: translateY(-1px);
+  }
+  .chip:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ---- Tab navigation ---- */
+  .tab {
+    position: relative;
+    padding: 10px 4px 10px;
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .tab::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--ocean);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.3, 1);
+  }
+  .tab:hover { color: var(--text-mid); }
+  .tab:not(.tab-on):hover::after { transform: scaleX(1); background: var(--ocean-dim); }
+  .tab-on { color: var(--ocean-bright); }
+  .tab-on::after { transform: scaleX(1); }
+
+  /* ---- Form fields ---- */
+  .field {
+    width: 100%;
+    padding: 9px 13px;
+    background: var(--surface-2);
+    color: var(--text-bright);
+    border: 1px solid var(--border-mid);
+    border-radius: 2px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field::placeholder { color: var(--text-faint); }
+  .field:focus {
+    border-color: var(--ocean);
+    box-shadow: 0 0 0 1px rgba(0,168,204,0.3);
+  }
+
+  /* ---- Stamp (verdict badge) ---- */
+  .stamp {
+    display: inline-block;
+    padding: 3px 8px;
+    border: 1.5px solid currentColor;
+    border-radius: 2px;
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    transform: rotate(-2deg);
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
+  /* ---- Hatch danger ---- */
+  .hatch-danger {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(239,68,68,0.08) 0 1.5px,
+      transparent 1.5px 8px
+    );
+  }
+
+  /* ---- Risk colors for text utilities ---- */
+  .text-risk-low      { color: var(--risk-low); }
+  .text-risk-moderate { color: var(--risk-mod); }
+  .text-risk-high     { color: var(--risk-high); }
+  .text-risk-extreme  { color: var(--risk-ext); }
+
+  /* Background risk */
+  .bg-risk-low      { background-color: var(--risk-low); }
+  .bg-risk-moderate { background-color: var(--risk-mod); }
+  .bg-risk-high     { background-color: var(--risk-high); }
+  .bg-risk-extreme  { background-color: var(--risk-ext); }
+
+  /* ---- Sounding (italic serif numerals, used in map) ---- */
+  .sounding {
+    font-family: "Fraunces Variable", Georgia, serif;
+    font-style: italic;
+    font-weight: 600;
+    font-variation-settings: "SOFT" 40;
+  }
+
+  /* ---- Chart sheet (map wrapper) ---- */
+  .chart-sheet {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border-mid);
+    border-radius: 3px;
+    padding: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .chart-frame {
+    position: relative;
+    overflow: hidden;
+    border-radius: 2px;
+    border: 1px solid var(--border-mid);
+    z-index: 2;
+  }
+  /* Coordinate tick marks on the chart border */
+  .chart-sheet::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    pointer-events: none;
+    z-index: 1;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,168,204,0.25) 0 1px, transparent 1px 24px)
+        top left / 100% 5px no-repeat,
+      repeating-linear-gradient(90deg, rgba(0,168,204,0.25) 0 1px, transparent 1px 24px)
+        bottom left / 100% 5px no-repeat,
+      repeating-linear-gradient(0deg, rgba(0,168,204,0.25) 0 1px, transparent 1px 24px)
+        top left / 5px 100% no-repeat,
+      repeating-linear-gradient(0deg, rgba(0,168,204,0.25) 0 1px, transparent 1px 24px)
+        top right / 5px 100% no-repeat;
+  }
+
+  [data-theme="light"] .chart-sheet {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  [data-theme="light"] .chart-sheet::before {
+    background:
+      repeating-linear-gradient(90deg, rgba(2, 132, 199, 0.2) 0 1px, transparent 1px 24px)
+        top left / 100% 5px no-repeat,
+      repeating-linear-gradient(90deg, rgba(2, 132, 199, 0.2) 0 1px, transparent 1px 24px)
+        bottom left / 100% 5px no-repeat,
+      repeating-linear-gradient(0deg, rgba(2, 132, 199, 0.2) 0 1px, transparent 1px 24px)
+        top left / 5px 100% no-repeat,
+      repeating-linear-gradient(0deg, rgba(2, 132, 199, 0.2) 0 1px, transparent 1px 24px)
+        top right / 5px 100% no-repeat;
+  }
+
+  /* ---- Lift hover effect ---- */
+  .lift { transition: transform 0.22s ease, box-shadow 0.22s ease; }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  /* ---- Wave rule (divider) ---- */
+  .wave-rule {
+    height: 7px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='7'%3E%3Cpath d='M0 5 Q3.5 1 7 5 T14 5' fill='none' stroke='%2300A8CC' stroke-opacity='0.4' stroke-width='1'/%3E%3C/svg%3E")
+      repeat-x center;
+    animation: wavecrawl 2.6s linear infinite;
+  }
+
+  /* ---- Metric display ---- */
+  .m-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .m-metric-val {
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1;
+    tabular-nums: true;
+  }
+  .m-metric-unit {
+    font-family: "Spline Sans Mono Variable", Consolas, monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+}
+
+/* ============================================================
+   LEAFLET OVERRIDES — dark maritime chart
+   ============================================================ */
+.leaflet-container {
+  background: #A0CEE5;
+  font-family: "Inter", "Nirmala UI", system-ui, sans-serif;
+}
+
+/* Maritime navigation chart — crisp light chart with vibrant blue water bodies */
+.leaflet-tile {
+  filter: brightness(1.1) contrast(1.05) saturate(2.2) hue-rotate(10deg);
+}
+
+[data-theme="light"] .leaflet-container {
+  background: #B4DBEE;
+}
+
+[data-theme="light"] .leaflet-tile {
+  filter: brightness(1.05) contrast(1.05) saturate(2.4) hue-rotate(5deg);
+}
+
+.leaflet-control-attribution {
+  background: rgba(5,14,24,0.92) !important;
+  color: var(--text-dim) !important;
+  font-size: 9px !important;
+  font-family: "Spline Sans Mono Variable", Consolas, monospace !important;
+  border-top: 1px solid var(--border) !important;
+}
+.leaflet-control-attribution a { color: var(--ocean-dim) !important; }
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface-2) !important;
+  color: var(--text-bright) !important;
+  border: 1px solid var(--border-mid) !important;
+  border-radius: 3px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+}
+.leaflet-popup-content {
+  margin: 11px 13px;
+  line-height: 1.5;
+  font-size: 12px;
+  color: var(--text-bright);
+}
+.leaflet-popup-content b {
+  font-family: "Fraunces Variable", Georgia, serif;
+  font-size: 13px;
+  color: var(--ocean);
+}
+
+.leaflet-bar {
+  border: 1px solid var(--border-mid) !important;
+  border-radius: 2px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+}
+.leaflet-bar a {
+  background: var(--surface-2) !important;
+  color: var(--text-mid) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-bar a:hover {
+  background: var(--surface-3) !important;
+  color: var(--ocean) !important;
+}
+
+/* ============================================================
+   ANIMATED WATER SURFACE & OCEAN CURRENT SYSTEM
+   Subtle moving water ripples and animated currents on water bodies
+   ============================================================ */
+.ocean-water-anim {
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 380; /* Above map tiles, below markers (z-index 500+) and compass */
+  overflow: hidden;
+  mix-blend-mode: overlay;
+  opacity: 0.85;
+}
+
+[data-theme="light"] .ocean-water-anim {
+  opacity: 0.65;
+}
+
+/* Primary ocean swell — flowing wave crests drifting in current direction */
+.ocean-swell-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 400px 400px;
+}
+
+.ocean-swell-layer--1 {
+  animation: oceanSwellDrift1 25s linear infinite;
+  opacity: 1;
+}
+
+/* Secondary cross-swell — gentle intersecting water ripples */
+.ocean-swell-layer--2 {
+  animation: oceanSwellDrift2 35s linear infinite;
+  transform: scale(1.3) rotate(20deg);
+  opacity: 0.7;
+}
+
+/* Caustic shimmer — gentle sun/moonlight play across water bodies */
+.ocean-caustic-layer {
+  display: none;
+}
+
+/* Leaflet water current streamlets — animated flowing dashes in water bodies */
+.water-stream-flow-1 {
+  stroke-linecap: round;
+  animation: waterStreamMarch1 3s linear infinite;
+}
+
+.water-stream-flow-2 {
+  stroke-linecap: round;
+  animation: waterStreamMarch2 4s linear infinite;
+}
+
+@keyframes waterStreamMarch1 {
+  to {
+    stroke-dashoffset: -80;
+  }
+}
+
+@keyframes waterStreamMarch2 {
+  to {
+    stroke-dashoffset: -80;
+  }
+}
+
+@keyframes oceanSwellDrift1 {
+  to {
+    background-position: 400px 400px;
+  }
+}
+
+@keyframes oceanSwellDrift2 {
+  to {
+    background-position: -400px 200px;
+  }
+}
+
+@keyframes oceanCausticShimmer {
+  0% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ocean-swell-layer--1,
+  .ocean-swell-layer--2,
+  .water-stream-flow-1,
+  .water-stream-flow-2 {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   SCROLLBARS — ocean-tinted dark scrollbars
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0,168,204,0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,168,204,0.45);
+}
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   CHART / INSTRUMENT REDESIGN CLASSES
+   ============================================================ */
+
+/* Chart header strip — admiralty-style label bar above the map frame */
+.chart-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-mid);
+  background: linear-gradient(180deg, rgba(0,168,204,0.06) 0%, transparent 100%);
+  flex-shrink: 0;
+}
+.chart-header-label {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.chart-header-label--accent {
+  color: var(--ocean-dim);
+}
+
+/* Compass rose overlay (top-right inside chart frame) */
+.chart-compass {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 499;
+  pointer-events: none;
+  opacity: 0.72;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+}
+
+/* Coordinate readout badge — floating over map */
+.chart-coordinate-badge {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  pointer-events: none;
+  background: rgba(10,25,41,0.92);
+  border: 1px solid var(--border-mid);
+  border-radius: 2px;
+  padding: 4px 10px;
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ocean);
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.chart-coordinate-badge.visible { opacity: 1; }
+
+[data-theme="light"] .chart-coordinate-badge {
+  background: rgba(255,255,255,0.93);
+  color: var(--ocean);
+}
+
+/* Chart key (legend) redesign */
+.chart-key {
+  background: rgba(10,25,41,0.93);
+  border: 1px solid var(--border-mid);
+  border-radius: 2px;
+  backdrop-filter: blur(4px);
+}
+.chart-key-hd {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 4px 8px 3px;
+  border-bottom: 1px solid var(--border);
+}
+.chart-key-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 8px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-mid);
+}
+
+[data-theme="light"] .chart-key {
+  background: rgba(255,255,255,0.93);
+}
+
+/* ---- Bridge Instruments Strip ---- */
+.bridge-strip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bridge-strip-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 14px 4px;
+  border-bottom: 1px solid var(--border-mid);
+  background: linear-gradient(180deg, rgba(0,168,204,0.08), transparent);
+}
+.bridge-strip-label {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ocean-dim);
+}
+.bridge-instruments {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+.bridge-instrument {
+  padding: 8px 10px 9px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.bridge-instrument:last-child { border-right: none; }
+.bridge-instrument-label {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+  truncate: true;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bridge-instrument-val {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-bright);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bridge-instrument-val--accent {
+  color: var(--ocean);
+}
+
+/* ---- Mission Console (ChatPanel) ---- */
+.console-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.console-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid var(--border-mid);
+  background: linear-gradient(180deg, rgba(0,168,204,0.09), transparent);
+  flex-shrink: 0;
+}
+.console-title {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ocean);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.console-subtitle {
+  font-family: "'Fraunces Variable', Georgia, serif";
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+.console-sonar-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ocean);
+  animation: sonar 2.2s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Idle / empty console state */
+.console-idle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 24px;
+  gap: 16px;
+}
+.console-idle-crosshair {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  opacity: 0.3;
+}
+.console-idle-label {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ocean-dim);
+  margin-bottom: 8px;
+}
+.console-idle-text {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+/* Chat bubbles */
+.console-bubble-user {
+  background: rgba(0,168,204,0.1);
+  border: 1px solid rgba(0,168,204,0.25);
+  border-top: 2px solid rgba(0,168,204,0.6);
+  border-radius: 2px;
+  border-top-right-radius: 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-bright);
+}
+.console-bubble-orca {
+  background: var(--surface-2);
+  border: 1px solid var(--border-mid);
+  border-top: 2px solid var(--border-strong);
+  border-radius: 2px;
+  border-top-left-radius: 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-bright);
+}
+.console-sender {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+/* Signal-line busy animation */
+@keyframes signalpulse {
+  0%   { opacity: 0; transform: scaleX(0.2); }
+  20%  { opacity: 1; transform: scaleX(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+.console-busy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-mid);
+  border-top: 2px solid var(--border-strong);
+  border-radius: 2px;
+  border-top-left-radius: 0;
+}
+.console-busy-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.console-busy-dots span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ocean);
+  animation: signalpulse 1.4s ease-in-out infinite;
+}
+.console-busy-dots span:nth-child(2) { animation-delay: 0.2s; }
+.console-busy-dots span:nth-child(3) { animation-delay: 0.4s; }
+.console-busy-text {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---- Barograph safety score ---- */
+.barograph {
+  position: relative;
+  height: 20px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.barograph-zones {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.barograph-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.8s cubic-bezier(0.25, 0.8, 0.3, 1);
+}
+.barograph-needle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: white;
+  border-radius: 1px;
+  box-shadow: 0 0 6px rgba(255,255,255,0.6);
+  transition: left 0.8s cubic-bezier(0.25, 0.8, 0.3, 1);
+}
+.barograph-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 7px;
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
+}
+
+/* ---- Instrument cluster (Today sidebar) ---- */
+.instrument-cluster {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.instrument-cell {
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+.instrument-cell-label {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+.instrument-cell-icon {
+  color: var(--ocean-dim);
+  font-size: 11px;
+  line-height: 1;
+}
+.instrument-cell-val {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-bright);
+  line-height: 1;
+}
+.instrument-cell-unit {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ---- Mission profiles (scenario chips) ---- */
+.mission-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(0,168,204,0.04), transparent);
+}
+.mission-strip-label {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.mission-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-mid);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.mission-chip:hover:not(:disabled) {
+  background: rgba(0,168,204,0.08);
+  border-color: var(--ocean-dim);
+  color: var(--ocean);
+  transform: translateY(-1px);
+}
+.mission-chip:disabled { opacity: 0.35; cursor: not-allowed; }
+.mission-chip-num {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ocean);
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  color: #020810;
+  flex-shrink: 0;
+}
+.mission-chip-hint {
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-rise, .animate-stampIn {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
