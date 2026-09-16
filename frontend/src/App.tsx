@@ -136,7 +136,7 @@ export default function App() {
   const language = langChoice ?? detected;
   const [zones, setZones] = useState<ZoneFeature[]>([]);
   const [mode, setMode] = useState<string>("DEMO");
-  const [intentMode, setIntentMode] = useState<IntentMode>("OFFLINE");
+  const [intentMode, setIntentMode] = useState<IntentMode>("AI");
   const [switching, setSwitching] = useState(false);
   const [speak, setSpeak] = useState(true);
   const [error, setError] = useState<string | null>(null);
