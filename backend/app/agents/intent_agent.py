@@ -191,7 +191,8 @@ def run(message: str, *, language: Optional[Language] = None,
         activity = str(payload.get("activity", "fishing"))
         if activity not in {"fishing", "travel"}:
             raise GroqIntentError("AI mode is unavailable")
-        source = "GROQ_LLM"
+        source = getattr(payload, "provider", "GROQ")
+        source = "NVIDIA_FALLBACK" if source == "NVIDIA_FALLBACK" else "GROQ_LLM"
     else:
         intent_type = _classify(message)
         activity = _activity(message)

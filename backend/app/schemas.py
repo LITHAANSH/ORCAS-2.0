@@ -57,7 +57,7 @@ class Intent(BaseModel):
     raw_query: str = ""
     needs: List[str] = Field(default_factory=list)
     missing: List[str] = Field(default_factory=list)
-    intent_source: Literal["KEYWORD_OFFLINE", "GROQ_LLM"] = "KEYWORD_OFFLINE"
+    intent_source: Literal["KEYWORD_OFFLINE", "GROQ_LLM", "NVIDIA_FALLBACK"] = "KEYWORD_OFFLINE"
 
 
 class AgentResult(BaseModel):

@@ -2,15 +2,81 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 
 import httpx
 
-from ..config import GROQ_API_KEY, GROQ_MODEL, GROQ_TIMEOUT_SECONDS
+from ..config import (GROQ_API_KEY, GROQ_MODEL, GROQ_TIMEOUT_SECONDS,
+                      NVIDIA_API_KEY, NVIDIA_BASE_URL, NVIDIA_MODEL,
+                      NVIDIA_TIMEOUT_SECONDS)
 
 
 class GroqIntentError(RuntimeError):
     """A safe, user-facing category of AI intent failure."""
+
+
+class ProviderPayload(dict):
+    """Provider-tagged dict that keeps the existing payload contract."""
+
+    def __init__(self, payload: Mapping[str, Any], provider: str):
+        super().__init__(payload)
+        self.provider = provider
+
+
+def _is_retryable_provider_error(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        if status == 429 or 500 <= status <= 599:
+            return True
+        if 400 <= status <= 499:
+            message = exc.response.text.lower()
+            return any(term in message for term in (
+                "rate limit", "rate_limit", "quota", "token limit",
+                "token exhausted", "tokens exhausted", "insufficient_quota",
+            ))
+        return False
+    return isinstance(exc, httpx.TransportError)
+
+
+def _post_completion(provider: str, payload: Dict[str, Any]) -> httpx.Response:
+    if provider == "GROQ":
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        api_key, model, timeout = GROQ_API_KEY, GROQ_MODEL, GROQ_TIMEOUT_SECONDS
+    else:
+        url = f"{NVIDIA_BASE_URL.rstrip('/')}/chat/completions"
+        api_key, model, timeout = NVIDIA_API_KEY, NVIDIA_MODEL, NVIDIA_TIMEOUT_SECONDS
+
+    print(f"AI provider attempt: {provider}")
+    response = httpx.post(
+        url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={**payload, "model": model},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    return response
+
+
+def _post_with_fallback(payload: Dict[str, Any]) -> tuple[httpx.Response, str]:
+    try:
+        response = _post_completion("GROQ", payload)
+        print("AI provider used: GROQ")
+        return response, "GROQ"
+    except httpx.HTTPError as exc:
+        status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+        print(f"AI provider GROQ failed: status={status or 'transport'}")
+        if not _is_retryable_provider_error(exc) or not NVIDIA_API_KEY:
+            raise
+        print("AI provider fallback triggered: NVIDIA")
+        try:
+            response = _post_completion("NVIDIA", payload)
+            print("AI provider used: NVIDIA_FALLBACK")
+            return response, "NVIDIA_FALLBACK"
+        except httpx.HTTPError as nvidia_exc:
+            nvidia_status = (nvidia_exc.response.status_code
+                             if isinstance(nvidia_exc, httpx.HTTPStatusError) else None)
+            print(f"AI provider NVIDIA failed: status={nvidia_status or 'transport'}")
+            raise
 
 
 def extract_intent(message: str) -> Dict[str, Any]:
@@ -29,26 +95,19 @@ def extract_intent(message: str) -> Dict[str, Any]:
         f"Question: {message}"
     )
     try:
-        response = httpx.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-            json={
-                "model": GROQ_MODEL,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": "You output only valid JSON."},
-                    {"role": "user", "content": prompt},
-                ],
-            },
-            timeout=GROQ_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
+        response, provider = _post_with_fallback({
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": "You output only valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+        })
         content = response.json()["choices"][0]["message"]["content"]
         payload = json.loads(content)
         if not isinstance(payload, dict):
             raise ValueError("structured response was not an object")
-        return payload
+        return ProviderPayload(payload, provider)
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
         print(f"GROQ ERROR: {exc!r}")
         if isinstance(exc, httpx.HTTPStatusError):
@@ -74,22 +133,16 @@ def generate_explanation(context_data: Dict[str, Any], language: str) -> str:
     )
     
     try:
-        response = httpx.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-            json={
-                "model": GROQ_MODEL,
-                "temperature": 0.2,
-                "messages": [
-                    {"role": "system", "content": "You are a marine safety assistant. Always cite sources in brackets."},
-                    {"role": "user", "content": prompt},
-                ],
-            },
-            timeout=GROQ_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
+        response, provider = _post_with_fallback({
+            "temperature": 0.2,
+            "messages": [
+                {"role": "system", "content": "You are a marine safety assistant. Always cite sources in brackets."},
+                {"role": "user", "content": prompt},
+            ],
+        })
         content = response.json()["choices"][0]["message"]["content"]
+        print(f"AI provider used: {provider}")
         return content.strip()
-    except Exception as exc:
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
         print(f"GROQ EXPLANATION ERROR: {exc!r}")
         return ""

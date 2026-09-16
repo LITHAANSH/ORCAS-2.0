@@ -17,6 +17,14 @@ services:
         sync: false
       - key: ORCA_GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NVIDIA_MODEL
+        value: openai/gpt-oss-20b
+      - key: NVIDIA_BASE_URL
+        value: https://integrate.api.nvidia.com/v1
+      - key: NVIDIA_TIMEOUT_SECONDS
+        value: "8"
       - key: COPERNICUS_USERNAME
         sync: false
       - key: COPERNICUS_PASSWORD
