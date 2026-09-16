@@ -114,7 +114,7 @@ export default function LocationPicker({
   return (
     <div ref={boxRef} className="panel relative z-[600] px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className="min-w-0 flex-1">
+        <div className="w-full min-w-0">
           <div className="label">{t.yourLocation}</div>
           <div className="mt-0.5 flex items-baseline gap-2.5">
             <span className="truncate font-display text-[18px] font-bold leading-tight text-ink-900">
@@ -126,21 +126,23 @@ export default function LocationPicker({
               </span>
             )}
             {current && (
-              <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-400">
+              <span className="basis-full shrink-0 whitespace-nowrap font-mono text-[10.5px] tabular-nums text-ink-400 sm:basis-auto">
                 {current.latitude.toFixed(3)}°N, {current.longitude.toFixed(3)}°E
               </span>
             )}
           </div>
         </div>
 
-        <button onClick={useGps} disabled={status === "locating"} className="btn-line !py-1.5 disabled:opacity-55">
-          <CrosshairGlyph size={13} />
-          {status === "locating" ? t.locating : t.useGps}
-        </button>
+        <div className="flex w-full flex-wrap gap-2">
+          <button onClick={useGps} disabled={status === "locating"} className="btn-line !py-1.5 disabled:opacity-55">
+            <CrosshairGlyph size={13} />
+            {status === "locating" ? t.locating : t.useGps}
+          </button>
 
-        <button onClick={() => setOpen((v) => !v)} className="btn-line !py-1.5">
-          {t.pickPort} ▾
-        </button>
+          <button onClick={() => setOpen((v) => !v)} className="btn-line !py-1.5">
+            {t.pickPort} ▾
+          </button>
+        </div>
       </div>
 
       {(status === "denied" || status === "error") && (
