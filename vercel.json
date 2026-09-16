@@ -1,23 +1,12 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "backend/app/main.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/vite"
-    }
-  ],
+  "buildCommand": "cd frontend && npm run build",
+  "installCommand": "cd frontend && npm install",
+  "outputDirectory": "frontend/dist",
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/backend/app/main.py"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/$1"
+      "destination": "/api/index.py"
     }
   ]
 }
