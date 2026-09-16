@@ -1,0 +1,10 @@
+backend/tests/
+backend/data/
+docs/
+*.md
+*.bat
+*.ps1
+*.sh
+render.yaml
+scratch/
+test.env
