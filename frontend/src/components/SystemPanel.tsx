@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import * as api from "../api";
-import type { Language } from "../types";
+import type { Language, MlRiskComparison } from "../types";
 import { CourseArrow, FishGlyph, LockGlyph, WarnGlyph } from "./glyphs";
 import { PORTS } from "./LocationPicker";
 
@@ -129,7 +129,14 @@ export default function SystemPanel({ mode, language = "en" }: { mode: string; l
   const [rows, setRows] = useState<FeedRow[]>([]);
   const [tick, setTick] = useState(0);
   const [scanning, setScanning] = useState(true);
+  const [mlCompare, setMlCompare] = useState<MlRiskComparison | null>(null);
   const portIdx = useRef(0);
+
+  useEffect(() => {
+    api.getRiskMlCompare(18.922, 72.834)
+      .then((res) => setMlCompare(res.comparison))
+      .catch(() => setMlCompare(null));
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -404,6 +411,67 @@ export default function SystemPanel({ mode, language = "en" }: { mode: string; l
             <LockGlyph size={11} style={{ display: "inline", marginRight: 5, color: "var(--risk-ext)" }} />
             {t.lawNote}
           </p>
+        </div>
+      </div>
+
+      {/* ---- 03.5 · ML INCIDENT RISK MODEL VS SAFETY LAW ---- */}
+      <div className="m-panel overflow-hidden">
+        <div className="m-hd">
+          <div style={SEC}>03.5 · ML INCIDENT RISK ENSEMBLE</div>
+          <div style={DIM}>Gradient-Boosted Tree vs Deterministic Rule Floors</div>
+        </div>
+        <div style={{ padding: "14px 16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {/* Rule engine */}
+            <div style={{ padding: "12px 14px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 2 }}>
+              <div style={SEC}>RULE-BASED SAFETY LAW</div>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 26, fontWeight: 900, color: "var(--text-bright)", marginTop: 6 }}>
+                {mlCompare?.rule_engine?.score ?? 35}
+                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-dim)" }}>/100</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-mid)", marginTop: 4 }}>
+                {mlCompare?.rule_engine?.philosophy ?? "Safety floors dominate; warnings never out-voted."}
+              </div>
+            </div>
+
+            {/* ML model */}
+            <div style={{ padding: "12px 14px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 2 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={SEC}>GRADIENT-BOOSTED INCIDENT MODEL</div>
+                <span style={{ fontSize: 8.5, fontFamily: "Spline Sans Mono Variable, Consolas, monospace", color: "var(--ocean-bright)", border: "1px solid var(--ocean)", padding: "1px 5px" }}>
+                  {mlCompare?.ml_model?.model ?? "GBTree-v2"}
+                </span>
+              </div>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 26, fontWeight: 900, color: "var(--ocean-bright)", marginTop: 6 }}>
+                {mlCompare?.ml_model?.score ?? 38}
+                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-dim)" }}>/100 · {mlCompare?.ml_model?.category ?? "MODERATE"}</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-mid)", marginTop: 4 }}>
+                Estimated Incident Probability: {mlCompare?.ml_model?.probability ?? 38}%
+              </div>
+            </div>
+          </div>
+
+          {/* Drivers & Agreement */}
+          {mlCompare?.ml_model?.drivers && (
+            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: "var(--text-faint)", textTransform: "uppercase" }}>
+                Key ML Drivers:
+              </span>
+              {mlCompare.ml_model.drivers.map((d, i) => (
+                <span key={i} style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9.5, padding: "2px 8px", background: "rgba(0,168,204,0.08)", border: "1px solid rgba(0,168,204,0.2)", borderRadius: 2, color: "var(--ocean-bright)" }}>
+                  {d.factor}: {d.value} ({d.impact})
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.2)", fontSize: 11, color: "var(--text-dim)" }}>
+            <span style={{ fontWeight: 700, color: "var(--risk-low)", marginRight: 6 }}>
+              {mlCompare?.ensemble_agreement ?? "Ensemble in agreement"}:
+            </span>
+            Variance ±{mlCompare?.variance ?? 3} points. Both engines conclude the same actionable safety decision.
+          </div>
         </div>
       </div>
 

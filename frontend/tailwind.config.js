@@ -38,41 +38,40 @@ export default {
           high:     "#F97316",
           extreme:  "#EF4444",
         },
-        // Text system
+        // Text system — mapped to CSS variables for dynamic Dark & Light mode
         text: {
-          bright: "#E8F4F8",
-          mid:    "#8BAFC4",
-          dim:    "#4A6E85",
-          faint:  "#2E4A5E",
+          bright: "var(--text-bright)",
+          mid:    "var(--text-mid)",
+          dim:    "var(--text-dim)",
+          faint:  "var(--text-faint)",
         },
         // Emergency red
         emergency: "#EF4444",
         // Signal colours (kept for backwards compat in Leaflet markers)
         signal: "#EF4444",
-        // Legacy alias paper/ink — mapped to new marine palette so any
-        // residual Tailwind classes don't error
+        // Legacy alias paper/ink — mapped to CSS variables for dynamic theme adaptation
         paper: {
-          50:  "#0A1929",
-          100: "#0F2236",
-          150: "#132A42",
-          200: "#1A3652",
-          300: "#234462",
-          400: "#2E5478",
+          50:  "var(--surface)",
+          100: "var(--surface-2)",
+          150: "var(--surface-3)",
+          200: "var(--surface-3)",
+          300: "var(--surface-2)",
+          400: "var(--surface)",
         },
         ink: {
-          900: "#E8F4F8",
-          800: "#C8DDE8",
-          700: "#A8C8D8",
-          500: "#8BAFC4",
-          400: "#6A94AB",
-          300: "#4A6E85",
+          900: "var(--text-bright)",
+          800: "var(--text-bright)",
+          700: "var(--text-mid)",
+          500: "var(--text-mid)",
+          400: "var(--text-dim)",
+          300: "var(--text-faint)",
         },
         chart: {
-          700: "#007A96",
-          600: "#008FB0",
-          500: "#00A8CC",
-          300: "#5589B0",
-          100: "#0F2236",
+          700: "var(--ocean-dim)",
+          600: "var(--ocean-dim)",
+          500: "var(--ocean)",
+          300: "var(--ocean-bright)",
+          100: "var(--surface-2)",
         },
       },
       fontFamily: {

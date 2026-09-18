@@ -17,13 +17,20 @@ from ..agents import (cyclone_agent, gis_agent, ocean_agent, risk_agent,
 from ..data import demo_store
 from ..data.demo_store import IST, now_ist
 from ..data.geo import (RESTRICTED_ZONES, distance_from_shore_km, haversine_km,
-                        nearest_port, point_in_polygon, zone_window_text, zones_near)
+                        is_on_land, nearest_port, point_in_polygon, zone_window_text, zones_near)
 from ..schemas import Location
-from ..services import fishing, plain_language
+from ..services import fishing, plain_language, species as species_service, tides
+from ..services.validation import validate_and_score
 
 router = APIRouter(prefix="/api", tags=["fishing"])
 
 MAX_RADIUS_KM = 100.0
+
+
+@router.get("/fishing/species")
+def get_species_catalog() -> dict:
+    """Return catalog of coastal commercial species."""
+    return {"ok": True, "species": species_service.list_species()}
 
 
 def _blocking_zone(lat: float, lon: float) -> Optional[Dict]:
@@ -101,6 +108,7 @@ def fishing_outlook(
     radius_km: float = Query(MAX_RADIUS_KM, ge=5, le=MAX_RADIUS_KM),
     days: int = Query(3, ge=1, le=3, description="Today plus the next N-1 days"),
     lang: str = Query("en", pattern="^(en|hi|kn)$"),
+    species: Optional[str] = Query(None, description="Target catch species (e.g. mackerel, sardine, pomfret, tuna, hilsa)"),
 ) -> dict:
     now = now_ist()
     port = nearest_port(lat, lon)
@@ -167,6 +175,15 @@ def fishing_outlook(
                 probability_pct=top_zone["probability"],
                 distance_km=top_zone["distance_km"],
             )
+            if species:
+                economics = species_service.adjust_trip_economics(economics, species)
+
+    # Attach species suitability to candidate grounds
+    if species:
+        for z in zones:
+            z["species_suitability"] = species_service.calculate_species_suitability(
+                species, z.get("sst_c"), z.get("chlorophyll_mg_m3")
+            )
 
     # ---- two-day outlook -------------------------------------------------
     forecast: List[Dict] = []
@@ -221,6 +238,7 @@ def fishing_outlook(
     ]
 
     # ---- plain language --------------------------------------------------
+    on_land = is_on_land(lat, lon)
     advice = plain_language.build(
         lang=lang,
         risk_category=risk.get("category", "MODERATE"),
@@ -233,6 +251,22 @@ def fishing_outlook(
         duration=duration,
         best_window=best_window,
         forecast=forecast,
+        is_on_land=on_land,
+    )
+
+    # ---- tides and astronomical lunar phase -----------------------------
+    tide_data = tides.get_coastal_tides(lat, lon, now)
+    target_sp_meta = species_service.get_species(species) if species else None
+
+    # ---- data validation & reliability scoring (0.0 to 10.0) ------------
+    val_report = validate_and_score(
+        weather=weather.data,
+        ocean=ocean.data,
+        location={"latitude": lat, "longitude": lon, "name": loc.name},
+        zones=zones,
+        mode=weather.mode,
+        sources=[weather.source, ocean.source, cyclone.source],
+        timestamp=now.isoformat(timespec="seconds"),
     )
 
     return {
@@ -242,6 +276,7 @@ def fishing_outlook(
             "nearest_landing_centre": port["name"],
             "distance_from_shore_km": round(distance_from_shore_km(lat, lon), 1),
         },
+        "is_on_land": on_land,
         "generated_at": now.isoformat(timespec="seconds"),
         "radius_km": radius_km,
         "safety": {
@@ -254,6 +289,10 @@ def fishing_outlook(
             "sea_state": ocean.data.get("sea_state"),
         },
         "areas": zones,
+        "target_species": target_sp_meta,
+        "species_catalog": species_service.list_species(),
+        "tide": tide_data,
+        "lunar": tide_data["lunar"],
         "best_window": {"from_hour": best_window[0], "to_hour": best_window[1]} if best_window else None,
         "hourly_ranking": [{"hour": h, "probability": p} for h, p in sorted(ranked_hours)],
         "duration": duration,
@@ -263,6 +302,8 @@ def fishing_outlook(
         "forecast": forecast,
         "advice": advice,
         "mode": weather.mode,
+        "reliability_score": val_report.score,
+        "validation": val_report.to_dict(),
         "method": ("Likelihood from chlorophyll, sea-surface temperature, thermal front "
                    "strength, sea state and time of day. A likelihood, never a guarantee."),
     }

@@ -25,11 +25,12 @@ from typing import Dict, List, Optional, Tuple
 
 from ..config import get_data_mode
 from ..data.demo_store import IST, now_ist
-from ..schemas import (AgentTrace, ChatRequest, ChatResponse, Evidence,
-                       GeofenceAlert, Intent, Location, PFZZone, RiskAssessment,
-                       RouteOption)
+from ..schemas import (AgentTrace, ChatRequest, ChatResponse, DataValidationReportSchema,
+                       Evidence, GeofenceAlert, Intent, Location, PFZZone,
+                       RiskAssessment, RouteOption)
 from ..services.i18n import t
 from ..services.groq_intent import GroqIntentError
+from ..services.validation import validate_and_score
 from . import (cyclone_agent, explanation_agent, gis_agent, intent_agent,
                ocean_agent, pfz_agent, risk_agent, route_agent, weather_agent)
 
@@ -195,6 +196,17 @@ def handle(req: ChatRequest) -> ChatResponse:
 
     evidence = [Evidence(**e) for e in expl_res.data.get("evidence", [])]
 
+    # ---- validation & reliability scoring (0.0 - 10.0) -------------------
+    val_report = validate_and_score(
+        weather=weather_d,
+        ocean=ocean_d,
+        location={"latitude": location.latitude, "longitude": location.longitude, "name": location.name},
+        zones=[z.model_dump() for z in pfz_zones],
+        mode=mode,
+        sources=sources,
+        timestamp=when.isoformat(timespec="seconds"),
+    )
+
     return ChatResponse(
         session_id=req.session_id,
         language=intent.language,
@@ -212,6 +224,8 @@ def handle(req: ChatRequest) -> ChatResponse:
         sources=source_map,
         disclaimer=expl_res.data.get("disclaimer", ""),
         elapsed_ms=int((time.perf_counter() - started) * 1000),
+        reliability_score=val_report.score,
+        validation=DataValidationReportSchema(**val_report.to_dict()),
     )
 
 

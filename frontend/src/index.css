@@ -36,6 +36,16 @@
   --rule:         rgba(0, 168, 204, 0.14);
   --rule-strong:  rgba(0, 168, 204, 0.48);
   --rule-faint:   rgba(0, 168, 204, 0.08);
+
+  /* HUD glass variables (Dark Mode) */
+  --hud-bg:         rgba(4, 13, 24, 0.88);
+  --hud-header-bg:  rgba(0, 194, 232, 0.08);
+  --hud-card-bg:    rgba(10, 22, 38, 0.65);
+  --hud-border:     rgba(0, 194, 232, 0.32);
+  --hud-border-dim: rgba(0, 194, 232, 0.18);
+  --hud-card-border:rgba(0, 194, 232, 0.16);
+  --hud-shadow:     0 12px 40px rgba(0, 0, 0, 0.65), 0 0 16px rgba(0, 194, 232, 0.08);
+
   /* Legacy aliases used by existing component inline styles */
   --chart-teal:   #00A8CC;
   --paper:        #0A1929;
@@ -45,32 +55,42 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg:           #F8FAFC;
+  --bg:           #F4F7FB;
   --surface:      #FFFFFF;
-  --surface-2:    #F1F5F9;
+  --surface-2:    #EEF3F8;
   --surface-3:    #E2E8F0;
-  --border:       rgba(148, 163, 184, 0.2);
-  --border-mid:   rgba(148, 163, 184, 0.3);
-  --border-strong:rgba(148, 163, 184, 0.5);
+  --border:       rgba(71, 85, 105, 0.16);
+  --border-mid:   rgba(71, 85, 105, 0.28);
+  --border-strong:rgba(71, 85, 105, 0.48);
   --ocean:        #0284C7;
   --ocean-bright: #0369A1;
   --ocean-dim:    #0EA5E9;
   --text-bright:  #0F172A;
-  --text-mid:     #475569;
+  --text-mid:     #334155;
   --text-dim:     #64748B;
   --text-faint:   #94A3B8;
   --risk-low:     #16A34A;
-  --risk-mod:     #CA8A04;
+  --risk-mod:     #D97706;
   --risk-high:    #EA580C;
   --risk-ext:     #DC2626;
   --emergency:    #DC2626;
-  --rule:         rgba(148, 163, 184, 0.2);
-  --rule-strong:  rgba(148, 163, 184, 0.5);
-  --rule-faint:   rgba(148, 163, 184, 0.1);
+  --rule:         rgba(71, 85, 105, 0.16);
+  --rule-strong:  rgba(71, 85, 105, 0.48);
+  --rule-faint:   rgba(71, 85, 105, 0.08);
+
+  /* HUD glass variables (Light Mode) */
+  --hud-bg:         rgba(255, 255, 255, 0.92);
+  --hud-header-bg:  rgba(2, 132, 199, 0.08);
+  --hud-card-bg:    rgba(241, 245, 249, 0.85);
+  --hud-border:     rgba(2, 132, 199, 0.35);
+  --hud-border-dim: rgba(2, 132, 199, 0.2);
+  --hud-card-border:rgba(148, 163, 184, 0.35);
+  --hud-shadow:     0 12px 36px rgba(15, 23, 42, 0.15), 0 0 12px rgba(2, 132, 199, 0.08);
+
   /* Legacy aliases used by existing component inline styles */
   --chart-teal:   #0284C7;
   --paper:        #FFFFFF;
-  --paper-bright: #F1F5F9;
+  --paper-bright: #F8FAFC;
   --ink:          #0F172A;
 }
 
@@ -792,42 +812,38 @@ path.zone-hatch-info     { fill: url(#hatch-info);     fill-opacity: 1; }
 }
 
 /* ============================================================
-   LEAFLET OVERRIDES — dark maritime chart
+   LEAFLET OVERRIDES — Native Dark Tactical Radar & Daylight Ocean Charts
    ============================================================ */
 .leaflet-container {
-  background: #A0CEE5;
+  background: #0B131E;
   font-family: "Inter", "Nirmala UI", system-ui, sans-serif;
 }
 
-/* Maritime navigation chart — crisp light chart with vibrant blue water bodies */
+/* Native dark and ocean basemaps are loaded cleanly without artificial color inversion */
 .leaflet-tile {
-  filter: brightness(1.1) contrast(1.05) saturate(2.2) hue-rotate(10deg);
+  transition: opacity 0.25s ease;
 }
 
 [data-theme="light"] .leaflet-container {
-  background: #B4DBEE;
-}
-
-[data-theme="light"] .leaflet-tile {
-  filter: brightness(1.05) contrast(1.05) saturate(2.4) hue-rotate(5deg);
+  background: #E2EFF7;
 }
 
 .leaflet-control-attribution {
-  background: rgba(5,14,24,0.92) !important;
+  background: var(--surface) !important;
   color: var(--text-dim) !important;
   font-size: 9px !important;
   font-family: "Spline Sans Mono Variable", Consolas, monospace !important;
   border-top: 1px solid var(--border) !important;
 }
-.leaflet-control-attribution a { color: var(--ocean-dim) !important; }
+.leaflet-control-attribution a { color: var(--ocean) !important; }
 
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background: var(--surface-2) !important;
+  background: var(--surface) !important;
   color: var(--text-bright) !important;
   border: 1px solid var(--border-mid) !important;
-  border-radius: 3px !important;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
 }
 .leaflet-popup-content {
   margin: 11px 13px;
@@ -843,16 +859,17 @@ path.zone-hatch-info     { fill: url(#hatch-info);     fill-opacity: 1; }
 
 .leaflet-bar {
   border: 1px solid var(--border-mid) !important;
-  border-radius: 2px !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+  border-radius: 3px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+  overflow: hidden;
 }
 .leaflet-bar a {
-  background: var(--surface-2) !important;
+  background: var(--surface) !important;
   color: var(--text-mid) !important;
   border-color: var(--border) !important;
 }
 .leaflet-bar a:hover {
-  background: var(--surface-3) !important;
+  background: var(--surface-2) !important;
   color: var(--ocean) !important;
 }
 
@@ -868,12 +885,55 @@ path.zone-hatch-info     { fill: url(#hatch-info);     fill-opacity: 1; }
   pointer-events: none;
   z-index: 380; /* Above map tiles, below markers (z-index 500+) and compass */
   overflow: hidden;
-  mix-blend-mode: overlay;
-  opacity: 0.85;
+  mix-blend-mode: soft-light;
+  opacity: 0.16;
 }
 
 [data-theme="light"] .ocean-water-anim {
-  opacity: 0.65;
+  opacity: 0.12;
+}
+
+/* Zone layer styling & glows */
+.zone-glow-pfz-1 {
+  filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.55));
+  animation: zonePulseGreen 3.2s ease-in-out infinite alternate;
+}
+.zone-glow-pfz-2 {
+  filter: drop-shadow(0 0 8px rgba(0, 168, 204, 0.45));
+}
+.zone-glow-critical {
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.55));
+}
+.zone-glow-warning {
+  filter: drop-shadow(0 0 7px rgba(245, 158, 11, 0.45));
+}
+.zone-glow-boundary {
+  filter: drop-shadow(0 0 10px rgba(220, 38, 38, 0.65));
+}
+
+@keyframes zonePulseGreen {
+  0% { stroke-opacity: 0.65; stroke-width: 2px; }
+  100% { stroke-opacity: 1; stroke-width: 3.5px; }
+}
+
+/* Floating zone tag labels */
+.zone-floating-tag {
+  background: rgba(10, 25, 41, 0.92);
+  backdrop-filter: blur(8px);
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-family: "Spline Sans Mono Variable", Consolas, monospace;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+[data-theme="light"] .zone-floating-tag {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
 }
 
 /* Primary ocean swell — flowing wave crests drifting in current direction */

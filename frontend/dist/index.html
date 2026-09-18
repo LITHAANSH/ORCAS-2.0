@@ -6,10 +6,20 @@
     <meta name="theme-color" content="#F5EEDD" />
     <title>ORCA — Marine Decision Support</title>
     <meta name="description" content="ORCA: a crew of AI agents turning Indian marine data into one safe, explainable decision for fishers. SIH26176." />
-    <script type="module" crossorigin src="/assets/index-Cp21Ggua.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CsokFaRD.css">
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/orca-icon.svg" />
+    <link rel="apple-touch-icon" href="/orca-icon.svg" />
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-JH7G2U79.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B2U7mSnc.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>

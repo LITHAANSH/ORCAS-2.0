@@ -1,16 +1,25 @@
-"""Emergency message formatting for the ORCA SOS flow."""
+"""Emergency message formatting and multi-recipient routing for the ORCA SOS flow.
+
+Integrates TextBee.dev Android SMS Gateway to broadcast distress alerts to:
+1. Central Operations Admin (all signals)
+2. Nearest Indian Coast Guard collaborator station (resolved dynamically from vessel lat/lon)
+3. Optional custom emergency recipient
+
+Ensures exact Lat/Lon and direct Google Maps links are prominently featured.
+"""
 from __future__ import annotations
 
 import os
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter
-import httpx
 from pydantic import BaseModel, Field
+
 from ..schemas import Language
+from ..services.coast_guard import find_nearest_coast_guard, list_coast_guard_stations
+from ..services.sms import dispatch_distress_sms, get_gateway_status, normalize_phone_number
 
 router = APIRouter(prefix="/api", tags=["sos"])
-SOS_RECIPIENT = os.getenv("ORCA_SMS_TO", "9339698196")
 
 
 class SosRisk(BaseModel):
@@ -35,6 +44,7 @@ class SosRequest(BaseModel):
     route: Optional[SosRoute] = None
     message: str = "Engine failure. Unable to return to shore."
     language: Language = "en"
+    recipient: Optional[str] = None
 
 
 def _duration(minutes: int) -> str:
@@ -42,81 +52,163 @@ def _duration(minutes: int) -> str:
     return f"{hours}h {remainder}m" if hours else f"{remainder}m"
 
 
-def _phone_number(value: str) -> str:
-    digits = "".join(character for character in value if character.isdigit())
-    if len(digits) == 10:
-        return f"+91{digits}"
-    return f"+{digits}" if digits else value
-
-
-def _send_sms(body: str) -> tuple[bool, str, Optional[str]]:
-    """Send through Twilio when configured; retain a truthful demo fallback."""
-    account_sid = os.getenv("ORCA_SMS_ACCOUNT_SID", "").strip()
-    auth_token = os.getenv("ORCA_SMS_AUTH_TOKEN", "").strip()
-    sender = os.getenv("ORCA_SMS_FROM", "").strip()
-    if not all((account_sid, auth_token, sender)):
-        return False, "SMS provider is not configured.", None
-
-    endpoint = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
-    try:
-        response = httpx.post(
-            endpoint,
-            data={"From": sender, "To": _phone_number(SOS_RECIPIENT), "Body": body},
-            auth=(account_sid, auth_token),
-            timeout=10.0,
-        )
-        if response.is_success:
-            sid = response.json().get("sid")
-            return True, "Emergency SMS sent.", sid
-        return False, f"SMS provider rejected the message ({response.status_code}).", None
-    except httpx.HTTPError:
-        return False, "SMS provider could not be reached.", None
+@router.get("/sos/status")
+def sos_status() -> dict:
+    """Return status of SMS gateway, admin dispatch lists, and Coast Guard stations."""
+    gw_status = get_gateway_status()
+    stations = list_coast_guard_stations()
+    return {
+        "ok": True,
+        "gateway": gw_status,
+        "stations_count": len(stations),
+        "stations": stations,
+    }
 
 
 @router.post("/sos")
 def send_sos(req: SosRequest) -> dict:
-    """Create and, when configured, deliver the emergency SMS."""
+    """Create and dispatch emergency distress alert via TextBee SMS Gateway."""
+    # 1. Resolve Nearest Coast Guard collaborator station
+    nearest_cg = find_nearest_coast_guard(req.latitude, req.longitude)
+
+    # 2. Localized labels
     labels = {
-        "en": {"title": "ORCA SOS EMERGENCY", "location": "BOAT LOCATION", "risk": "CURRENT RISK", "hazards": "ACTIVE HAZARDS", "route": "SAFEST ROUTE TO LAND", "unavailable": "Unavailable - ORCA could not determine a safe return route.", "destination": "Destination", "distance": "Distance", "eta": "ETA", "route_risk": "Route Risk", "message": "MESSAGE", "none": "None reported"},
-        "hi": {"title": "ORCA SOS आपातकाल", "location": "नाव का स्थान", "risk": "वर्तमान जोखिम", "hazards": "सक्रिय खतरे", "route": "भूमि तक सबसे सुरक्षित मार्ग", "unavailable": "उपलब्ध नहीं - ORCA सुरक्षित वापसी मार्ग निर्धारित नहीं कर सका।", "destination": "गंतव्य", "distance": "दूरी", "eta": "अनुमानित समय", "route_risk": "मार्ग जोखिम", "message": "संदेश", "none": "कोई नहीं"},
-        "kn": {"title": "ORCA SOS ತುರ್ತು ಪರಿಸ್ಥಿತಿ", "location": "ದೋಣಿಯ ಸ್ಥಳ", "risk": "ಪ್ರಸ್ತುತ ಅಪಾಯ", "hazards": "ಸಕ್ರಿಯ ಅಪಾಯಗಳು", "route": "ಭೂಮಿಗೆ ಅತ್ಯಂತ ಸುರಕ್ಷಿತ ಮಾರ್ಗ", "unavailable": "ಲಭ್ಯವಿಲ್ಲ - ORCA ಸುರಕ್ಷಿತ ಹಿಂದಿರುಗುವ ಮಾರ್ಗವನ್ನು ಕಂಡುಹಿಡಿಯಲಿಲ್ಲ.", "destination": "ಗಮ್ಯಸ್ಥಾನ", "distance": "ದೂರ", "eta": "ಅಂದಾಜು ಸಮಯ", "route_risk": "ಮಾರ್ಗದ ಅಪಾಯ", "message": "ಸಂದೇಶ", "none": "ಯಾವುದೂ ಇಲ್ಲ"},
+        "en": {
+            "title": "🚨 ORCA SOS DISTRESS ALERT 🚨",
+            "vessel_loc": "VESSEL IN DISTRESS",
+            "gmaps": "Google Maps",
+            "cg_responder": "ASSIGNED COAST GUARD RESPONDER",
+            "station": "Station",
+            "distance": "Distance",
+            "risk_title": "CURRENT RISK",
+            "hazards_title": "ACTIVE HAZARDS",
+            "route_title": "SAFEST ROUTE TO LAND",
+            "destination": "Destination",
+            "eta": "ETA",
+            "route_risk": "Route Risk",
+            "unavailable": "Safe return route unavailable from current position.",
+            "message_title": "EMERGENCY MESSAGE",
+            "dispatch_notice": "RECIPIENTS NOTIFIED: Central Admin Command + Coast Guard First Responder",
+            "none": "None reported",
+        },
+        "hi": {
+            "title": "🚨 ORCA SOS आपातकालीन संकट चेतावनी 🚨",
+            "vessel_loc": "संकट में नाव का स्थान",
+            "gmaps": "गूगल मैप्स",
+            "cg_responder": "नियुक्त तटरक्षक बल (Coast Guard)",
+            "station": "स्टेशन",
+            "distance": "दूरी",
+            "risk_title": "वर्तमान जोखिम",
+            "hazards_title": "सक्रिय खतरे",
+            "route_title": "भूमि तक सबसे सुरक्षित मार्ग",
+            "destination": "गंतव्य",
+            "eta": "अनुमानित समय",
+            "route_risk": "मार्ग जोखिम",
+            "unavailable": "सुरक्षित वापसी मार्ग उपलब्ध नहीं है।",
+            "message_title": "आपातकालीन संदेश",
+            "dispatch_notice": "प्राप्तकर्ता: केंद्रीय व्यवस्थापक + निकटतम तटरक्षक बल",
+            "none": "कोई नहीं",
+        },
+        "kn": {
+            "title": "🚨 ORCA SOS ತುರ್ತು ಆಪತ್ತು ಎಚ್ಚರಿಕೆ 🚨",
+            "vessel_loc": "ಆಪತ್ತಿನಲ್ಲಿರುವ ದೋಣಿಯ ಸ್ಥಳ",
+            "gmaps": "ಗೂಗಲ್ ನಕ್ಷೆಗಳು",
+            "cg_responder": "ನಿಯೋಜಿತ ಕೋಸ್ಟ್ ಗಾರ್ಡ್ ಪ್ರತಿಸ್ಪಂದಕ",
+            "station": "ನಿಲ್ದಾಣ",
+            "distance": "ದೂರ",
+            "risk_title": "ಪ್ರಸ್ತುತ ಅಪಾಯ",
+            "hazards_title": "ಸಕ್ರಿಯ ಅಪಾಯಗಳು",
+            "route_title": "ಭೂಮಿಗೆ ಅತ್ಯಂತ ಸುರಕ್ಷಿತ ಮಾರ್ಗ",
+            "destination": "ಗಮ್ಯಸ್ಥಾನ",
+            "eta": "ಅಂದಾಜು ಸಮಯ",
+            "route_risk": "ಮಾರ್ಗದ ಅಪಾಯ",
+            "unavailable": "ಸುರಕ್ಷಿತ ಹಿಂದಿರುಗುವ ಮಾರ್ಗ ಲಭ್ಯವಿಲ್ಲ.",
+            "message_title": "ತುರ್ತು ಸಂದೇಶ",
+            "dispatch_notice": "ಸ್ವೀಕರಿಸುವವರು: ಕೇಂದ್ರ ನಿರ್ವಾಹಕರು + ಸಮೀಪದ ಕೋಸ್ಟ್ ಗಾರ್ಡ್",
+            "none": "ಯಾವುದೂ ಇಲ್ಲ",
+        },
     }.get(req.language, {})
     labels = labels or {
-        "title": "ORCA SOS EMERGENCY", "location": "BOAT LOCATION", "risk": "CURRENT RISK", "hazards": "ACTIVE HAZARDS", "route": "SAFEST ROUTE TO LAND", "unavailable": "Unavailable - ORCA could not determine a safe return route.", "destination": "Destination", "distance": "Distance", "eta": "ETA", "route_risk": "Route Risk", "message": "MESSAGE", "none": "None reported",
+        "title": "🚨 ORCA SOS DISTRESS ALERT 🚨",
+        "vessel_loc": "VESSEL IN DISTRESS",
+        "gmaps": "Google Maps",
+        "cg_responder": "ASSIGNED COAST GUARD RESPONDER",
+        "station": "Station",
+        "distance": "Distance",
+        "risk_title": "CURRENT RISK",
+        "hazards_title": "ACTIVE HAZARDS",
+        "route_title": "SAFEST ROUTE TO LAND",
+        "destination": "Destination",
+        "eta": "ETA",
+        "route_risk": "Route Risk",
+        "unavailable": "Safe return route unavailable from current position.",
+        "message_title": "EMERGENCY MESSAGE",
+        "dispatch_notice": "RECIPIENTS NOTIFIED: Central Admin Command + Coast Guard First Responder",
+        "none": "None reported",
     }
+
+    gmaps_url = f"https://maps.google.com/?q={req.latitude:.6f},{req.longitude:.6f}"
+
+    # 3. Construct the comprehensive, high-priority emergency distress SMS
     lines = [
         labels["title"],
         "",
-        labels["location"],
-        f"Lat: {req.latitude:.6f}",
-        f"Lng: {req.longitude:.6f}",
-        f"Map: https://www.google.com/maps?q={req.latitude:.6f},{req.longitude:.6f}",
+        labels["vessel_loc"] + ":",
+        f"Lat: {req.latitude:.6f}° N",
+        f"Lon: {req.longitude:.6f}° E",
+        f"{labels['gmaps']}: {gmaps_url}",
         "",
-        labels["risk"],
-        f"Risk: {req.risk.category} ({req.risk.score})",
+        labels["cg_responder"] + ":",
+        f"{labels['station']}: {nearest_cg['name']}",
+        f"{labels['distance']}: {nearest_cg['distance_km']} km offshore ({nearest_cg['region']})",
         "",
-        labels["hazards"],
+        labels["risk_title"] + ":",
+        f"{req.risk.category} ({req.risk.score}/100)",
+        "",
+        labels["hazards_title"] + ":",
     ]
     lines.extend(f"- {hazard}" for hazard in req.hazards or [labels["none"]])
-    lines.extend(["", labels["route"]])
+
+    lines.extend(["", labels["route_title"] + ":"])
     if req.route and req.route.available:
         destination = req.route.destination or {}
         lines.extend([
-            f"{labels['destination']}: {destination.get('name', 'Safe shore')}",
+            f"{labels['destination']}: {destination.get('name', 'Safe Shore')}",
             f"{labels['distance']}: {req.route.distance_km:g} km" if req.route.distance_km is not None else f"{labels['distance']}: unavailable",
             f"{labels['eta']}: {_duration(req.route.eta_minutes)}" if req.route.eta_minutes is not None else f"{labels['eta']}: unavailable",
             f"{labels['route_risk']}: {req.route.risk_category} ({req.route.risk_score})",
         ])
     else:
         lines.append(labels["unavailable"])
-    lines.extend(["", labels["message"], req.message.strip()])
-    sms = "\n".join(lines)
-    delivered, status, provider_id = _send_sms(sms)
+
+    lines.extend([
+        "",
+        labels["message_title"] + ":",
+        req.message.strip(),
+        "",
+        labels["dispatch_notice"],
+    ])
+
+    sms_body = "\n".join(lines)
+
+    # 4. Dispatch through SMS Gateway service (Admin + Nearest Coast Guard + Custom)
+    dispatch_result = dispatch_distress_sms(
+        lat=req.latitude,
+        lon=req.longitude,
+        body=sms_body,
+        custom_recipient=req.recipient,
+    )
+
     return {
         "ok": True,
-        "message": status,
-        "recipient": SOS_RECIPIENT,
-        "delivered": delivered,
-        "provider_id": provider_id,
-        "sms": sms,
+        "message": dispatch_result["message"],
+        "delivered": dispatch_result["delivered"],
+        "provider": dispatch_result["provider"],
+        "provider_id": dispatch_result["provider_id"],
+        "recipients": dispatch_result["recipients"],
+        "latitude": req.latitude,
+        "longitude": req.longitude,
+        "google_maps_url": gmaps_url,
+        "nearest_coast_guard": nearest_cg,
+        "sms": sms_body,
     }

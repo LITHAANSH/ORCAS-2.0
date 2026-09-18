@@ -6,6 +6,16 @@
     <meta name="theme-color" content="#F5EEDD" />
     <title>ORCA — Marine Decision Support</title>
     <meta name="description" content="ORCA: a crew of AI agents turning Indian marine data into one safe, explainable decision for fishers. SIH26176." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/orca-icon.svg" />
+    <link rel="apple-touch-icon" href="/orca-icon.svg" />
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -50,10 +50,12 @@ Write-Host ""
 Write-Host "  Ctrl+C to stop." -ForegroundColor DarkGray
 Write-Host ""
 
-if (-not ($env:ORCA_SMS_ACCOUNT_SID -and $env:ORCA_SMS_AUTH_TOKEN -and $env:ORCA_SMS_FROM)) {
-    Write-Host "  SMS       : not configured (SOS will prepare, but not deliver, SMS)" -ForegroundColor Yellow
-} else {
+if ($env:TEXTBEE_API_KEY -or $env:ORCA_TEXTBEE_API_KEY) {
+    Write-Host "  SMS       : TextBee Android Gateway configured (Admin + Nearest Coast Guard)" -ForegroundColor Green
+} elseif ($env:ORCA_SMS_ACCOUNT_SID -and $env:ORCA_SMS_AUTH_TOKEN -and $env:ORCA_SMS_FROM) {
     Write-Host "  SMS       : Twilio delivery configured" -ForegroundColor Green
+} else {
+    Write-Host "  SMS       : TextBee simulation mode (distress will route to Admin + Nearest Coast Guard)" -ForegroundColor Yellow
 }
 
 $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue

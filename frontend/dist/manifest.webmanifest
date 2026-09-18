@@ -1,0 +1,36 @@
+{
+  "name": "ORCA — Marine Decision Support",
+  "short_name": "ORCA",
+  "description": "A crew of AI agents turning Indian marine data into one safe, explainable decision for fishers.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B192C",
+  "theme_color": "#F5EEDD",
+  "categories": ["weather", "productivity", "navigation"],
+  "icons": [
+    {
+      "src": "/orca-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today Fishing Outlook",
+      "url": "/?tab=home",
+      "description": "View today's sea conditions and potential fishing zones"
+    },
+    {
+      "name": "Ask ORCA AI",
+      "url": "/?tab=ask",
+      "description": "Voice and multilingual query assistant"
+    },
+    {
+      "name": "Emergency SOS",
+      "url": "/?demo=danger",
+      "description": "Transmit emergency position and distress report"
+    }
+  ]
+}

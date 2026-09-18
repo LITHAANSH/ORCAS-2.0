@@ -172,17 +172,19 @@ export default function Landing({
     >
       {/* Three.js ocean canvas — full-screen backdrop */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-        <OceanCanvas />
+        <OceanCanvas theme={theme as "light" | "dark"} />
       </div>
 
-      {/* Gradient overlay to improve text legibility */}
+      {/* Subtle depth vignette that preserves wave crests and ocean illumination */}
       <div
         style={{
           position: "fixed",
           inset: 0,
           zIndex: 1,
           pointerEvents: "none",
-          background: "linear-gradient(180deg, rgba(5,14,24,0.72) 0%, rgba(5,14,24,0.45) 40%, rgba(5,14,24,0.78) 80%, rgba(5,14,24,0.95) 100%)",
+          background: theme === "light"
+            ? "radial-gradient(ellipse at 50% 30%, rgba(244, 247, 251, 0.15) 0%, rgba(238, 243, 248, 0.55) 65%, rgba(226, 232, 240, 0.88) 100%)"
+            : "radial-gradient(ellipse at 50% 30%, rgba(2, 11, 24, 0.25) 0%, rgba(2, 7, 18, 0.65) 65%, rgba(2, 7, 18, 0.92) 100%)",
         }}
       />
 
@@ -196,8 +198,8 @@ export default function Landing({
           justifyContent: "space-between",
           padding: "18px 32px",
           borderBottom: "1px solid var(--border)",
-          background: "rgba(5,14,24,0.6)",
-          backdropFilter: "blur(8px)",
+          background: theme === "light" ? "rgba(255, 255, 255, 0.75)" : "rgba(5, 14, 24, 0.6)",
+          backdropFilter: "blur(12px)",
         }}>
           {/* Logo */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

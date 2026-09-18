@@ -276,7 +276,10 @@ def plan_emergency_route(origin: Coord, *, wave_m: Optional[float] = None,
         else:
             grid = _build_grid(origin, destination)
             start = _nearest_node(grid, origin)
-            goal = _nearest_node(grid, destination)
+            water_nodes = [(i, j) for i, row in enumerate(grid) for j, node in enumerate(row) if not is_on_land(*node)]
+            if not water_nodes:
+                continue
+            goal = min(water_nodes, key=lambda n: haversine_km(grid[n[0]][n[1]], destination))
             path = _astar(grid, start, goal, wave_m, wind_kmh, avoid_zones=True, avoid_land=True)
             if not path:
                 continue

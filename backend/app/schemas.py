@@ -60,6 +60,27 @@ class Intent(BaseModel):
     intent_source: Literal["KEYWORD_OFFLINE", "GROQ_LLM", "NVIDIA_FALLBACK"] = "KEYWORD_OFFLINE"
 
 
+class ValidationCheckSchema(BaseModel):
+    name: str
+    passed: bool
+    value: Any
+    expected: str
+    message: str
+    severity: Literal["info", "warning", "error"] = "info"
+
+
+class DataValidationReportSchema(BaseModel):
+    score: float
+    max_score: float = 10.0
+    rating: str
+    is_valid: bool
+    checks_passed: int
+    checks_total: int
+    checks: List[ValidationCheckSchema] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    provenance_summary: str = ""
+
+
 class AgentResult(BaseModel):
     """Uniform envelope returned by every specialist agent."""
 
@@ -76,6 +97,8 @@ class AgentResult(BaseModel):
     mode: DataMode = "DEMO"
     latency_ms: Optional[int] = None
     error: Optional[str] = None
+    reliability_score: Optional[float] = None
+    validation: Optional[DataValidationReportSchema] = None
 
 
 class ProviderMetadata(BaseModel):
@@ -223,3 +246,5 @@ class ChatResponse(BaseModel):
     sources: Dict[str, str] = Field(default_factory=dict)
     disclaimer: str = ""
     elapsed_ms: int = 0
+    reliability_score: Optional[float] = None
+    validation: Optional[DataValidationReportSchema] = None

@@ -5,6 +5,7 @@ import AuthorityPanel from "./components/AuthorityPanel";
 import ChatPanel from "./components/ChatPanel";
 import ConditionsStrip from "./components/ConditionsStrip";
 import FishingPanel from "./components/FishingPanel";
+import InstrumentHud from "./components/InstrumentHud";
 import {
   ChartDefs,
   OrcaLogo,
@@ -127,7 +128,15 @@ const UI: Record<Language, Record<string, string>> = {
 };
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("landing");
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "landing") return "landing";
+      if (tabParam === "ask" || tabParam === "authority" || tabParam === "system") return tabParam;
+    } catch {}
+    return "home";
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [latest, setLatest] = useState<ChatResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -140,18 +149,31 @@ export default function App() {
   const [switching, setSwitching] = useState(false);
   const [speak, setSpeak] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      const saved = localStorage.getItem("orca-theme");
+      if (saved === "light" || saved === "dark") return saved;
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+        return "light";
+      }
+    } catch {}
+    return "dark";
+  });
 
   const [place, setPlace] = useState<PickedLocation | null>(null);
   const [outlook, setOutlook] = useState<FishingOutlook | null>(null);
+  const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [emergencyRoute, setEmergencyRoute] = useState<EmergencyRoute | null>(null);
   const [loadingOutlook, setLoadingOutlook] = useState(false);
   const [focusRank, setFocusRank] = useState<number | null>(null);
   const [sosOpen, setSosOpen] = useState(false);
 
-  // Theme effect
+  // Theme effect with persistence
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem("orca-theme", theme);
+    } catch {}
   }, [theme]);
 
   // Boot
@@ -199,12 +221,17 @@ export default function App() {
     setLoadingOutlook(true);
     setFocusRank(null);
     api
-      .fishingOutlook(place.latitude, place.longitude, { radiusKm: RADIUS_KM, days: 3, lang: language })
+      .fishingOutlook(place.latitude, place.longitude, {
+        radiusKm: RADIUS_KM,
+        days: 3,
+        lang: language,
+        species: selectedSpecies || undefined,
+      })
       .then((d) => alive && setOutlook(d))
       .catch(() => alive && setOutlook(null))
       .finally(() => alive && setLoadingOutlook(false));
     return () => { alive = false; };
-  }, [place?.latitude, place?.longitude, language]);
+  }, [place?.latitude, place?.longitude, language, selectedSpecies]);
 
   useEffect(() => {
     if (!place) return;
@@ -395,6 +422,33 @@ export default function App() {
             </span>
           </button>
 
+          {/* Reliability Score Badge (out of 10) */}
+          {outlook?.reliability_score !== undefined && (
+            <div
+              className="flex flex-col items-center justify-center gap-1 px-3 py-3"
+              style={{ borderLeft: "1px solid var(--border)" }}
+              title={`Data Reliability: ${outlook.reliability_score.toFixed(1)}/10 (${outlook.validation?.rating || "Validated"}) - ${outlook.validation?.provenance_summary || ""}`}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 9, color: "var(--ocean-dim)" }}>★</span>
+                <span
+                  style={{
+                    fontFamily: "Spline Sans Mono Variable, Consolas, monospace",
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: outlook.reliability_score >= 8.5 ? "var(--risk-low)" : outlook.reliability_score >= 7.0 ? "var(--ocean-bright)" : "var(--risk-mod)",
+                  }}
+                >
+                  {outlook.reliability_score.toFixed(1)}
+                  <span style={{ fontSize: 8, color: "var(--text-faint)", fontWeight: 500 }}>/10</span>
+                </span>
+              </div>
+              <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-faint)" }}>
+                Score
+              </span>
+            </div>
+          )}
+
           {/* Voice */}
           <button
             onClick={() => setSpeak((v) => !v)}
@@ -441,21 +495,25 @@ export default function App() {
             </span>
           </div>
 
-          {/* Theme */}
+          {/* Theme Toggle */}
           <button
-            onClick={() => setTheme((t) => t === "light" ? "dark" : "light")}
-            title="Toggle theme"
-            className="flex flex-col items-center justify-center gap-1 px-4 py-3 transition-colors"
+            onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+            title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+            className="flex flex-col items-center justify-center gap-1 px-4 py-3 transition-colors cursor-pointer"
             style={{ borderLeft: "1px solid var(--border)" }}
           >
-            <span style={{ color: theme === "light" ? "var(--ocean)" : "var(--text-faint)", fontSize: 16 }}>
-              {theme === "light" ? "☀" : "☾"}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ color: theme === "light" ? "#F59E0B" : "var(--ocean-bright)", fontSize: 13 }}>
+                {theme === "light" ? "☀" : "☾"}
+              </span>
+              <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: "var(--text-mid)" }}>
+                {theme === "light" ? ui.light : ui.dark}
+              </span>
+            </div>
             <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-faint)" }}>
               {ui.theme}
             </span>
           </button>
-
 
           {/* SOS — always visible */}
           <button
@@ -484,6 +542,10 @@ export default function App() {
               {tabLabels[x]}
             </button>
           ))}
+          <button onClick={() => setTab("landing")} className={`tab mt-1 flex items-center gap-2 ${tab === "landing" ? "tab-on" : ""}`}>
+            <span style={{ fontSize: 10, opacity: 0.6 }}>⚓</span>
+            {language === "kn" ? "ಅವಲೋಕನ" : language === "hi" ? "अवलोकन" : "Overview"}
+          </button>
           <span className="ml-auto pb-2.5 font-mono text-[8.5px] uppercase tracking-[0.14em] text-text-faint" style={{ color: "var(--text-faint)" }}>
             {ui.marginalia}
           </span>
@@ -506,160 +568,24 @@ export default function App() {
 
         {/* ===== HOME TAB ===== */}
         {tab === "home" && (
-          <div className="flex min-h-0 flex-1 flex-col gap-0 p-4 lg:flex-row lg:gap-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 lg:flex-row lg:gap-4">
 
-            {/* Left sidebar: marine status */}
-            <div className="hidden w-72 shrink-0 flex-col gap-3 lg:flex">
-              {/* Location picker */}
-              <LocationPicker current={place} language={language} onPick={setPlace} />
+            {/* Dominant Map Viewport (62–65% Width) with Floating Glass Instrument HUD */}
+            <div className="relative flex-1 lg:w-[63%] lg:flex-none flex flex-col min-h-[460px] rounded-lg overflow-hidden border border-[var(--border)] shadow-lg bg-[var(--surface)]">
+              {/* Floating Glass Instrument HUD */}
+              <InstrumentHud
+                outlook={outlook}
+                emergencyRoute={emergencyRoute}
+                language={language}
+              />
 
-              {/* Marine conditions — Instrument Cluster */}
-              {outlook && (
-                <div className="m-panel overflow-hidden">
-                  <div className="m-hd">
-                    <span className="m-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ color: "var(--ocean)", fontSize: 9 }}>⊕</span>
-                      {language === "kn" ? "ಸಮುದ್ರ ಸ್ಥಿತಿ" : language === "hi" ? "समुद्र स्थिति" : "Position Status"}
-                    </span>
-                    <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 8, color: "var(--text-faint)", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                      {outlook.mode}
-                    </span>
-                  </div>
-
-                  {/* Instrument cluster */}
-                  <div style={{ padding: "12px 12px 0" }}>
-                    <div className="instrument-cluster">
-                      <div className="instrument-cell">
-                        <div className="instrument-cell-label">
-                          <span className="instrument-cell-icon">≋</span>
-                          {language === "kn" ? "ಅಲೆ ಎತ್ತರ" : language === "hi" ? "लहरें" : "Wave Ht"}
-                        </div>
-                        <div className="instrument-cell-val">{outlook.safety.wave_height_m?.toFixed(1) ?? "—"}</div>
-                        <div className="instrument-cell-unit">metres</div>
-                      </div>
-                      <div className="instrument-cell">
-                        <div className="instrument-cell-label">
-                          <span className="instrument-cell-icon">↑</span>
-                          {language === "kn" ? "ಗಾಳಿ" : language === "hi" ? "हवा" : "Wind"}
-                        </div>
-                        <div className="instrument-cell-val">{Math.round(outlook.safety.wind_speed_kmh ?? 0)}</div>
-                        <div className="instrument-cell-unit">km/h</div>
-                      </div>
-                      <div className="instrument-cell">
-                        <div className="instrument-cell-label">
-                          <span className="instrument-cell-icon">◈</span>
-                          {language === "kn" ? "ಸಮುದ್ರ" : language === "hi" ? "समुद्र" : "Sea State"}
-                        </div>
-                        <div className="instrument-cell-val" style={{ fontSize: 14 }}>{outlook.safety.sea_state ?? "—"}</div>
-                        <div className="instrument-cell-unit">&nbsp;</div>
-                      </div>
-                      <div className="instrument-cell">
-                        <div className="instrument-cell-label">
-                          <span className="instrument-cell-icon">◉</span>
-                          {language === "kn" ? "ಪ್ರದೇಶಗಳು" : language === "hi" ? "क्षेत्र" : "PFZ Areas"}
-                        </div>
-                        <div className="instrument-cell-val">{outlook.areas.length}</div>
-                        <div className="instrument-cell-unit">in {outlook.radius_km} km</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Safety score — barograph */}
-                  <div style={{ padding: "12px 12px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span className="m-label">{language === "kn" ? "ಸುರಕ್ಷತಾ ಸ್ಕೋರ್" : language === "hi" ? "सुरक्षा स्कोर" : "Safety Score"}</span>
-                      <span style={{
-                        fontFamily: "Spline Sans Mono Variable, Consolas, monospace",
-                        fontSize: 22,
-                        fontWeight: 800,
-                        lineHeight: 1,
-                        color: RISK_COLOR[outlook.safety.category],
-                      }}>
-                        {outlook.safety.score}
-                        <span style={{ fontSize: 10, fontWeight: 600, color: RISK_COLOR[outlook.safety.category], marginLeft: 3 }}>
-                          {outlook.safety.category}
-                        </span>
-                      </span>
-                    </div>
-                    {/* Barograph */}
-                    <div className="barograph">
-                      {/* Zone bands */}
-                      <div className="barograph-zones">
-                        <div style={{ width: "40%", background: "rgba(34,197,94,0.22)" }} />
-                        <div style={{ width: "20%", background: "rgba(245,158,11,0.22)" }} />
-                        <div style={{ width: "20%", background: "rgba(249,115,22,0.22)" }} />
-                        <div style={{ width: "20%", background: "rgba(239,68,68,0.22)" }} />
-                      </div>
-                      {/* Animated fill */}
-                      <div
-                        className="barograph-fill grow-x"
-                        style={{ width: `${outlook.safety.score}%`, background: RISK_COLOR[outlook.safety.category], opacity: 0.7 }}
-                      />
-                      {/* Needle */}
-                      <div className="barograph-needle" style={{ left: `calc(${outlook.safety.score}% - 1px)` }} />
-                    </div>
-                    <div className="barograph-scale">
-                      <span>0</span><span>LOW</span><span>MOD</span><span>HIGH</span><span>100</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Emergency route panel */}
-              {emergencyRoute && (
-                <div className="m-panel overflow-hidden" style={{ borderColor: emergencyRoute.available ? "rgba(239,68,68,0.25)" : "var(--border)" }}>
-                  <div className="m-hd" style={{ background: emergencyRoute.available ? "rgba(239,68,68,0.06)" : undefined }}>
-                    <span className="m-label" style={{ color: emergencyRoute.available ? "#EF4444" : undefined }}>
-                      {language === "kn" ? "ತುರ್ತು ಮಾರ್ಗ" : language === "hi" ? "आपातकालीन मार्ग" : "Emergency Return"}
-                    </span>
-                  </div>
-                  {emergencyRoute.available ? (
-                    <div className="px-4 py-3 space-y-2">
-                      <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "Spline Sans Mono Variable, Consolas, monospace" }}>
-                        {language === "kn" ? "ಭೂಮಿಗೆ ಸುರಕ್ಷಿತ ಮರಳು" : language === "hi" ? "सुरक्षित भूमि वापसी" : "Safe Return to Land"}
-                      </div>
-                      <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 28, fontWeight: 800, color: "var(--text-bright)", lineHeight: 1 }}>
-                        {emergencyRoute.distance_km} <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-dim)" }}>km</span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
-                        <div>
-                          <div style={{ fontSize: 9, color: "var(--text-faint)", letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: "Spline Sans Mono Variable, Consolas, monospace" }}>ETA</div>
-                          <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 14, fontWeight: 700, color: "var(--text-mid)" }}>
-                            {Math.floor((emergencyRoute.eta_minutes ?? 0) / 60)}h {(emergencyRoute.eta_minutes ?? 0) % 60}m
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 9, color: "var(--text-faint)", letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: "Spline Sans Mono Variable, Consolas, monospace" }}>Risk</div>
-                          <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 14, fontWeight: 700, color: emergencyRoute.risk_category ? RISK_COLOR[emergencyRoute.risk_category] : "var(--text-mid)" }}>
-                            {emergencyRoute.risk_category ?? "—"}
-                          </div>
-                        </div>
-                      </div>
-                      {emergencyRoute.destination && (
-                        <div style={{ fontSize: 11, color: "var(--text-dim)", paddingTop: 4, borderTop: "1px solid var(--border)" }}>
-                          → {emergencyRoute.destination.name}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="px-4 py-4 text-[12px]" style={{ color: "var(--text-dim)" }}>
-                      {language === "kn" ? "ಸುರಕ್ಷಿತ ಮರಳು ಮಾರ್ಗ ಲಭ್ಯವಿಲ್ಲ" : language === "hi" ? "सुरक्षित वापसी मार्ग उपलब्ध नहीं" : "Return route unavailable from this position."}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Center: Map */}
-            <div className="min-h-0 flex-1">
-              {/* Mobile location picker */}
+              {/* Sonar status overlay when loading */}
               {loadingOutlook && !outlook && (
                 <div
-                  className="mb-3 flex items-center gap-3 rounded px-4 py-3"
-                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+                  className="absolute top-3 right-3 z-[998] flex items-center gap-2 rounded-md px-3 py-2 shadow-md"
+                  style={{ background: "rgba(6, 16, 28, 0.88)", backdropFilter: "blur(12px)", border: "1px solid rgba(0, 194, 232, 0.3)" }}
                 >
-                  {/* Sonar sweep animation */}
-                  <div style={{ position: "relative", width: 18, height: 18, flexShrink: 0 }}>
+                  <div style={{ position: "relative", width: 14, height: 14, flexShrink: 0 }}>
                     <span style={{
                       position: "absolute",
                       inset: 0,
@@ -676,51 +602,66 @@ export default function App() {
                       opacity: 0.8,
                     }} />
                   </div>
-                  <span style={{ fontSize: 12.5, color: "var(--text-mid)", fontFamily: "Spline Sans Mono Variable, Consolas, monospace", letterSpacing: "0.06em" }}>
-                    {language === "kn" ? "ನಿಮ್ಮ ಸ್ಥಳದ ಮಾಹಿತಿ ತರಲಾಗುತ್ತಿದೆ…" : language === "hi" ? "आपके स्थान की जानकारी ले रहे हैं…" : "Reading the sea at your location…"}
+                  <span style={{ fontSize: 11, color: "var(--text-bright)", fontFamily: "Spline Sans Mono Variable, Consolas, monospace" }}>
+                    {language === "kn" ? "ಸ್ಥಳದ ಮಾಹಿತಿ ತರಲಾಗುತ್ತಿದೆ…" : language === "hi" ? "स्थान की जानकारी ले रहे हैं…" : "Reading ocean sensors…"}
                   </span>
                 </div>
               )}
 
-              <MarineMap
-                origin={homeOrigin}
-                emergencyRoute={emergencyRoute}
-                zones={zones}
-                pfz={EMPTY_PFZ}
-                areas={outlook?.areas ?? EMPTY_AREAS}
-                radiusKm={outlook?.radius_km ?? RADIUS_KM}
-                routes={outlook?.routes ?? EMPTY_ROUTES}
-                geofence={EMPTY_GEOFENCE}
-                alerts={EMPTY_ALERTS}
-                language={language}
-                onPickLocation={pickLocation}
-                focusRank={focusRank}
-              />
+              {/* Interactive Marine Map */}
+              <div className="flex-1 w-full h-full min-h-[440px]">
+                <MarineMap
+                  origin={homeOrigin}
+                  emergencyRoute={emergencyRoute}
+                  zones={zones}
+                  pfz={EMPTY_PFZ}
+                  areas={outlook?.areas ?? EMPTY_AREAS}
+                  radiusKm={outlook?.radius_km ?? RADIUS_KM}
+                  routes={outlook?.routes ?? EMPTY_ROUTES}
+                  geofence={EMPTY_GEOFENCE}
+                  alerts={EMPTY_ALERTS}
+                  language={language}
+                  onPickLocation={pickLocation}
+                  focusRank={focusRank}
+                />
+              </div>
 
-              {/* Mobile quick stats */}
+              {/* Mobile quick stats strip */}
               {outlook && (
-                <div className="mt-3 grid grid-cols-4 gap-2 lg:hidden">
+                <div className="grid grid-cols-4 gap-2 p-2 lg:hidden bg-[var(--surface)] border-t border-[var(--border)]">
                   {[
                     { k: "Risk", v: `${outlook.safety.score}`, s: outlook.safety.category, color: RISK_COLOR[outlook.safety.category] },
                     { k: "Wave", v: `${outlook.safety.wave_height_m?.toFixed(1) ?? "—"}`, s: "m" },
                     { k: "Wind", v: `${Math.round(outlook.safety.wind_speed_kmh ?? 0)}`, s: "km/h" },
                     { k: "PFZ", v: `${outlook.areas.length}`, s: `areas` },
                   ].map((x) => (
-                    <div key={x.k} className="m-panel px-3 py-2 text-center">
-                      <div className="m-label">{x.k}</div>
-                      <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 18, fontWeight: 700, color: x.color ?? "var(--text-bright)", lineHeight: 1.2 }}>
+                    <div key={x.k} className="m-panel px-2 py-1 text-center">
+                      <div className="m-label text-[9px]">{x.k}</div>
+                      <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 16, fontWeight: 700, color: x.color ?? "var(--text-bright)", lineHeight: 1.2 }}>
                         {x.v}
                       </div>
-                      <div style={{ fontSize: 9, color: "var(--text-dim)" }}>{x.s}</div>
+                      <div style={{ fontSize: 8, color: "var(--text-dim)" }}>{x.s}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Right sidebar: intelligence */}
-            <div className="hidden w-80 shrink-0 flex-col gap-3 overflow-y-auto lg:flex" style={{ maxHeight: "calc(100vh - 120px)" }}>
-              {outlook && <FishingPanel data={outlook} language={language} onSelectArea={(rank) => setFocusRank(rank)} />}
+            {/* Right sidebar: Location Picker + Fishing & Safety Operations Briefing (35–37% Width) */}
+            <div className="flex flex-col gap-3 lg:w-[37%] shrink-0 overflow-y-auto" style={{ maxHeight: "calc(100vh - 120px)" }}>
+              {/* Location Picker docked prominently at top */}
+              <LocationPicker current={place} language={language} onPick={setPlace} />
+
+              {/* Fishing & Safety Intelligence Panel */}
+              {outlook && (
+                <FishingPanel
+                  data={outlook}
+                  language={language}
+                  selectedSpecies={selectedSpecies}
+                  onSelectSpecies={setSelectedSpecies}
+                  onSelectArea={(rank) => setFocusRank(rank)}
+                />
+              )}
             </div>
           </div>
         )}

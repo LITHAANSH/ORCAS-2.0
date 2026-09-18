@@ -11,6 +11,7 @@ from ..agents import (cyclone_agent, gis_agent, ocean_agent, pfz_agent,
 from ..data.demo_store import IST, now_ist
 from ..data.geo import is_on_land, nearest_port
 from ..schemas import Location
+from ..services.validation import validate_and_score
 
 router = APIRouter(prefix="/api", tags=["forecast"])
 
@@ -34,11 +35,48 @@ def forecast(lat: float = Query(...), lon: float = Query(...),
     loc, dt = _resolve(lat, lon, when)
     weather = weather_agent.run(loc, dt)
     ocean = ocean_agent.run(loc, dt)
+    val = validate_and_score(
+        weather=weather.data,
+        ocean=ocean.data,
+        location={"latitude": loc.latitude, "longitude": loc.longitude, "name": loc.name},
+        mode=weather.mode,
+        sources=[weather.source, ocean.source],
+        timestamp=dt.isoformat(timespec="seconds"),
+    )
     return {
         "location": loc.model_dump(),
         "valid_for": dt.isoformat(timespec="seconds"),
         "weather": weather.model_dump(),
         "ocean": ocean.model_dump(),
+        "reliability_score": val.score,
+        "validation": val.to_dict(),
+    }
+
+
+@router.get("/validate")
+def validate_conditions(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+    when: Optional[str] = Query(None, description="ISO timestamp"),
+) -> dict:
+    """Dedicated validation and reliability scoring check (0.0 to 10.0) for any marine point."""
+    loc, dt = _resolve(lat, lon, when)
+    weather = weather_agent.run(loc, dt)
+    ocean = ocean_agent.run(loc, dt)
+    val = validate_and_score(
+        weather=weather.data,
+        ocean=ocean.data,
+        location={"latitude": loc.latitude, "longitude": loc.longitude, "name": loc.name},
+        mode=weather.mode,
+        sources=[weather.source, ocean.source],
+        timestamp=dt.isoformat(timespec="seconds"),
+    )
+    return {
+        "ok": True,
+        "location": loc.model_dump(),
+        "valid_for": dt.isoformat(timespec="seconds"),
+        "reliability_score": val.score,
+        "validation": val.to_dict(),
     }
 
 
@@ -132,3 +170,40 @@ def risk_timeline(lat: float = Query(...), lon: float = Query(...),
             "warning": bool(cyclone.data.get("official_warning_active")),
         })
     return {"location": loc.model_dump(), "points": points}
+
+
+@router.get("/risk/ml-compare")
+def risk_ml_compare(lat: float = Query(...), lon: float = Query(...)) -> dict:
+    """Compare deterministic rule-based safety score against ML incident risk classifier."""
+    from ..services.risk_ml import compare_models
+
+    loc, dt = _resolve(lat, lon, None)
+    weather = weather_agent.run(loc, dt)
+    ocean = ocean_agent.run(loc, dt)
+    cyclone = cyclone_agent.run(loc, dt)
+    gis = gis_agent.run(loc, dt)
+    assessment = risk_agent.run(
+        loc, dt, weather=weather.data, ocean=ocean.data, cyclone=cyclone.data,
+        gis=gis.data, sources=[], mode=weather.mode,
+    )
+
+    rule_score = int(assessment.data.get("score", 30))
+    wave_m = float(ocean.data.get("wave_height_m") or 1.2)
+    wind_kmh = float(weather.data.get("wind_speed_kmh") or 20.0)
+    rain_pct = float(weather.data.get("rain_probability_pct") or 15.0)
+    distance_km = float(gis.data.get("distance_from_shore_km") or 5.0)
+    warning = bool(cyclone.data.get("official_warning_active"))
+
+    comparison = compare_models(
+        wave_height_m=wave_m,
+        wind_speed_kmh=wind_kmh,
+        rule_score=rule_score,
+        rain_probability_pct=rain_pct,
+        distance_shore_km=distance_km,
+        official_warning=warning,
+    )
+    return {
+        "location": loc.model_dump(),
+        "checked_at": dt.isoformat(timespec="seconds"),
+        "comparison": comparison,
+    }

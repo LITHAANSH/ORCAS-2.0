@@ -136,9 +136,18 @@ def build(*, lang: Language, risk_category: str, official_warning: bool,
           wave_m: Optional[float], wind_kmh: Optional[float],
           improve_hour: Optional[int], zones: Sequence[Dict],
           closed_zones: Sequence[Dict], duration: Optional[Dict],
-          best_window: Optional[Sequence[int]], forecast: Sequence[Dict]) -> List[str]:
+          best_window: Optional[Sequence[int]], forecast: Sequence[Dict],
+          is_on_land: bool = False) -> List[str]:
     """The whole advisory, as short spoken-style sentences."""
     lines: List[str] = []
+
+    # If position is detected at land, state it plainly right upfront
+    if is_on_land:
+        lines.append({
+            "en": "You are currently at land. Move your boat into open water or choose an offshore waypoint to calculate fishing grounds and sea routes.",
+            "hi": "आप वर्तमान में ज़मीन पर हैं। मछली पकड़ने के क्षेत्र और समुद्री मार्ग देखने के लिए अपनी नाव को पानी में ले जाएँ।",
+            "kn": "ನೀವು ಪ್ರಸ್ತುತ ಭೂಮಿಯಲ್ಲಿದ್ದೀರಿ. ಮೀನುಗಾರಿಕೆ ಪ್ರದೇಶಗಳು ಮತ್ತು ಸಮುದ್ರ ಮಾರ್ಗಗಳನ್ನು ನೋಡಲು ನಿಮ್ಮ ದೋಣಿಯನ್ನು ನೀರಿಗೆ ತನ್ನಿ.",
+        }[lang])
 
     # 1. safety first, always
     lines.append(GO_LINE.get(risk_category, GO_LINE["MODERATE"])[lang])

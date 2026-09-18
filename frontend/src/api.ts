@@ -83,7 +83,7 @@ export function checkPosition(lat: number, lon: number): Promise<PositionCheck> 
 export function fishingOutlook(
   lat: number,
   lon: number,
-  opts: { radiusKm?: number; days?: number; lang?: Language } = {},
+  opts: { radiusKm?: number; days?: number; lang?: Language; species?: string } = {},
 ): Promise<FishingOutlook> {
   const p = new URLSearchParams({
     lat: String(lat),
@@ -92,7 +92,18 @@ export function fishingOutlook(
     days: String(opts.days ?? 3),
     lang: opts.lang ?? "en",
   });
+  if (opts.species) {
+    p.set("species", opts.species);
+  }
   return json<FishingOutlook>(`${BASE}/fishing?${p}`);
+}
+
+export function getSpeciesCatalog(): Promise<{ ok: boolean; species: import("./types").SpeciesMeta[] }> {
+  return json<{ ok: boolean; species: import("./types").SpeciesMeta[] }>(`${BASE}/fishing/species`);
+}
+
+export function getRiskMlCompare(lat: number, lon: number): Promise<{ location: any; checked_at: string; comparison: import("./types").MlRiskComparison }> {
+  return json<{ location: any; checked_at: string; comparison: import("./types").MlRiskComparison }>(`${BASE}/risk/ml-compare?lat=${lat}&lon=${lon}`);
 }
 
 export function sendSos(payload: {
@@ -103,11 +114,18 @@ export function sendSos(payload: {
   route: EmergencyRoute | null;
   message: string;
   language: Language;
+  recipient?: string;
 }): Promise<SosResponse> {
   return json<SosResponse>(`${BASE}/sos`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function getSosStatus() {
+  return json<{ ok: boolean; gateway: import("./types").SosGatewayStatus; stations: import("./types").CoastGuardStation[] }>(
+    `${BASE}/sos/status`
+  );
 }
 
 export function emergencyRoute(latitude: number, longitude: number): Promise<EmergencyRoute> {
@@ -173,3 +191,16 @@ export function config() {
     note: string;
   }>(`${BASE}/config`);
 }
+
+export function validateConditions(lat: number, lon: number, when?: string) {
+  const p = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+  if (when) p.set("when", when);
+  return json<{
+    ok: boolean;
+    location: any;
+    valid_for: string;
+    reliability_score: number;
+    validation: import("./types").DataValidationReport;
+  }>(`${BASE}/validate?${p}`);
+}
+

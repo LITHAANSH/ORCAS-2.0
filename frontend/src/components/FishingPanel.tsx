@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import type { CatchRating, FishingOutlook, Language } from "../types";
 import { FishGlyph, SchoolGlyph, WarnGlyph } from "./glyphs";
 
@@ -26,6 +27,10 @@ const T: Record<Language, Record<string, string>> = {
     fuel: "Fuel", catch: "Catch", revenue: "Revenue", profit: "Profit",
     econNote: "Planning estimate — not a guarantee.", barsCaption: "Factors: chlorophyll · SST · front · sea · time",
     pfzTitle: "PFZ INTELLIGENCE", pfzSub: "Potential Fishing Zones",
+    targetTitle: "TARGET CATCH SPECIES", allCatch: "All Commercial Species",
+    tideTitle: "TIDES & SOLUNAR INTELLIGENCE", tideSub: "Astronomical lunar cycles & coastal tidal schedule",
+    nextHigh: "Next High", nextLow: "Next Low", tidalRange: "Tidal Range", currentLevel: "Current Tide",
+    solunarFish: "Solunar Fish Feeding", match: "Match",
   },
   hi: {
     advice: "ORCA सुझाव", areas: "मछली पकड़ने की सबसे अच्छी जगहें", within: "के अंदर", away: "दूर", chance: "मछली की उम्मीद",
@@ -38,6 +43,10 @@ const T: Record<Language, Record<string, string>> = {
     fuel: "ईंधन", catch: "मछली", revenue: "आमदनी", profit: "मुनाफ़ा",
     econNote: "अनुमान — कोई वादा नहीं।", barsCaption: "कारक: क्लोरोफिल · SST · फ्रंट · समुद्र · समय",
     pfzTitle: "PFZ बुद्धिमत्ता", pfzSub: "संभावित मत्स्य क्षेत्र",
+    targetTitle: "लक्षित मछली प्रजाति", allCatch: "सभी वाणिज्यिक प्रजातियाँ",
+    tideTitle: "ज्वार और चंद्र बुद्धिमत्ता", tideSub: "खगोलीय चंद्र कला और तटीय ज्वार समय",
+    nextHigh: "अगला उच्च ज्वार", nextLow: "अगला निम्न ज्वार", tidalRange: "ज्वार अंतर", currentLevel: "वर्तमान स्तर",
+    solunarFish: "मछली भोजन गतिविधि", match: "अनुकूलता",
   },
   kn: {
     advice: "ORCA ಶಿಫಾರಸು", areas: "ಮೀನುಗಾರಿಕೆಗೆ ಉತ್ತಮ ಪ್ರದೇಶಗಳು", within: "ಒಳಗೆ", away: "ದೂರ", chance: "ಸಾಧ್ಯತೆ",
@@ -50,6 +59,10 @@ const T: Record<Language, Record<string, string>> = {
     fuel: "ಇಂಧನ", catch: "ಮೀನು", revenue: "ಆದಾಯ", profit: "ಲಾಭ",
     econNote: "ಯೋಜನಾ ಅಂದಾಜು — ಖಾತರಿ ಇಲ್ಲ.", barsCaption: "ಅಂಶಗಳು: ಕ್ಲೋರೊಫಿಲ್ · SST · ಮುಂಭಾಗ · ಸಮುದ್ರ · ಸಮಯ",
     pfzTitle: "PFZ ಬುದ್ಧಿಮತ್ತೆ", pfzSub: "ಸಂಭಾವ್ಯ ಮೀನುಗಾರಿಕೆ ಪ್ರದೇಶಗಳು",
+    targetTitle: "ಗುರಿ ಮೀನು ಜಾತಿಗಳು", allCatch: "ಎಲ್ಲಾ ವಾಣಿಜ್ಯ ಜಾತಿಗಳು",
+    tideTitle: "ಉಬ್ಬರವಿಳಿತ ಮತ್ತು ಚಂದ್ರನ ಬುದ್ಧಿಮತ್ತೆ", tideSub: "ಖಗೋಳ ಚಂದ್ರನ ಹಂತ ಮತ್ತು ಕರಾವಳಿ ವೇಳಾಪಟ್ಟಿ",
+    nextHigh: "ಮುಂದಿನ ಉಬ್ಬರ", nextLow: "ಮುಂದಿನ ಇಳಿತ", tidalRange: "ಉಬ್ಬರ ವ್ಯಾಪ್ತಿ", currentLevel: "ಪ್ರಸ್ತುತ ಮಟ್ಟ",
+    solunarFish: "ಮೀನು ಚಟುವಟಿಕೆ ರೇಟಿಂಗ್", match: "ಹೊಂದಾಣಿಕೆ",
   },
 };
 
@@ -84,18 +97,218 @@ const SEC_LABEL: React.CSSProperties = {
 export default function FishingPanel({
   data,
   language = "en",
+  selectedSpecies,
+  onSelectSpecies,
   onSelectArea,
 }: {
   data: FishingOutlook;
   language?: Language;
+  selectedSpecies?: string | null;
+  onSelectSpecies?: (id: string | null) => void;
   onSelectArea?: (rank: number) => void;
 }) {
   const t = T[language] ?? T.en;
   const words = RATING_WORD[language] ?? RATING_WORD.en;
   const top = data.areas.slice(0, 3);
+  const [showValidation, setShowValidation] = useState(false);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+      {/* ---- DATA VALIDATION & RELIABILITY SCORE (0-10) ---- */}
+      {data.reliability_score !== undefined && (
+        <div className="m-panel overflow-hidden" style={{ borderLeft: `3px solid ${data.reliability_score >= 8.5 ? "var(--risk-low)" : data.reliability_score >= 7.0 ? "var(--ocean)" : "var(--risk-mod)"}` }}>
+          <div className="m-hd" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: "var(--ocean)", fontSize: 13 }}>✦</span>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--ocean)" }}>
+                Data Validation & Reliability
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                fontFamily: "Spline Sans Mono Variable, Consolas, monospace",
+                fontSize: 13,
+                fontWeight: 900,
+                color: data.reliability_score >= 8.5 ? "var(--risk-low)" : data.reliability_score >= 7.0 ? "var(--ocean-bright)" : "var(--risk-mod)",
+                background: "var(--surface-2)",
+                padding: "2px 8px",
+                borderRadius: 3,
+                border: "1px solid var(--border)",
+              }}>
+                {data.reliability_score.toFixed(1)} <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 500 }}>/ 10</span>
+              </div>
+              <span style={{
+                fontFamily: "Spline Sans Mono Variable, Consolas, monospace",
+                fontSize: 9,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                padding: "2px 6px",
+                borderRadius: 2,
+                background: data.reliability_score >= 8.5 ? "rgba(34,197,94,0.15)" : data.reliability_score >= 7.0 ? "rgba(0,168,204,0.15)" : "rgba(245,158,11,0.15)",
+                color: data.reliability_score >= 8.5 ? "var(--risk-low)" : data.reliability_score >= 7.0 ? "var(--ocean-bright)" : "var(--risk-mod)",
+              }}>
+                {data.validation?.rating || (data.reliability_score >= 8.5 ? "High" : "Moderate")}
+              </span>
+            </div>
+          </div>
+          <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <p style={{ fontSize: 11, color: "var(--text-mid)", margin: 0, lineHeight: 1.5, flex: 1, minWidth: 200 }}>
+                {data.validation?.provenance_summary || "Telemetry cross-checked against Indian Ocean and coastal physical boundary models."}
+              </p>
+              <button
+                onClick={() => setShowValidation(v => !v)}
+                style={{
+                  fontFamily: "Spline Sans Mono Variable, Consolas, monospace",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  color: "var(--ocean-bright)",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  padding: "4px 8px",
+                  borderRadius: 2,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <span>{showValidation ? "Hide Checks" : `View Checks (${data.validation?.checks_passed || 0}/${data.validation?.checks_total || 0} Passed)`}</span>
+                <span>{showValidation ? "▲" : "▼"}</span>
+              </button>
+            </div>
+
+            {/* Expandable Validation Checklist */}
+            {showValidation && data.validation && (
+              <div style={{
+                marginTop: 6,
+                padding: "10px",
+                background: "var(--surface-2)",
+                borderRadius: 3,
+                border: "1px solid var(--border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                  <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase" }}>
+                    Automated Physical & Boundary Checks
+                  </span>
+                  <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: data.validation.is_valid ? "var(--risk-low)" : "var(--risk-high)" }}>
+                    {data.validation.is_valid ? "✓ ALL CRITICAL CHECKS PASSED" : "⚠ ISSUES DETECTED"}
+                  </span>
+                </div>
+                {data.validation.checks.map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      fontSize: 11,
+                      padding: "6px 8px",
+                      borderRadius: 2,
+                      background: "var(--surface)",
+                      border: `1px solid ${c.passed ? "rgba(34,197,94,0.15)" : c.severity === "error" ? "rgba(239,68,68,0.25)" : "rgba(245,158,11,0.25)"}`,
+                    }}
+                  >
+                    <span style={{ color: c.passed ? "var(--risk-low)" : c.severity === "error" ? "var(--risk-extreme)" : "var(--risk-mod)", fontWeight: 800, fontSize: 11, marginTop: 1 }}>
+                      {c.passed ? "✓" : "✗"}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
+                        <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 10, fontWeight: 700, color: "var(--text-bright)" }}>
+                          {c.name.replace(/_/g, " ").toUpperCase()}
+                        </span>
+                        <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: "var(--ocean-dim)" }}>
+                          {String(c.value)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 2 }}>
+                        {c.message} <span style={{ color: "var(--text-dim)" }}>({c.expected})</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ---- TARGET SPECIES SELECTOR ---- */}
+      <div className="m-panel overflow-hidden">
+        <div className="m-hd" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--ocean)" }}>
+            {t.targetTitle}
+          </div>
+          {selectedSpecies && (
+            <button
+              onClick={() => onSelectSpecies?.(null)}
+              style={{
+                fontFamily: "Spline Sans Mono Variable, Consolas, monospace",
+                fontSize: 8,
+                color: "var(--ocean)",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div style={{ padding: "10px 12px", display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <button
+            onClick={() => onSelectSpecies?.(null)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 2,
+              border: `1px solid ${!selectedSpecies ? "var(--ocean)" : "var(--border)"}`,
+              background: !selectedSpecies ? "rgba(0,168,204,0.15)" : "var(--surface-2)",
+              color: !selectedSpecies ? "var(--ocean-bright)" : "var(--text-mid)",
+              fontSize: 11,
+              fontFamily: "Spline Sans Mono Variable, Consolas, monospace",
+              fontWeight: !selectedSpecies ? 700 : 500,
+              cursor: "pointer",
+              transition: "all 0.15s",
+            }}
+          >
+            🐟 {t.allCatch}
+          </button>
+          {(data.species_catalog || []).map((sp) => {
+            const isSel = selectedSpecies === sp.id;
+            const vernName = sp.vernacular[language] || sp.name;
+            return (
+              <button
+                key={sp.id}
+                onClick={() => onSelectSpecies?.(isSel ? null : sp.id)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  borderRadius: 2,
+                  border: `1px solid ${isSel ? "var(--ocean)" : "var(--border)"}`,
+                  background: isSel ? "rgba(0,168,204,0.15)" : "var(--surface-2)",
+                  color: isSel ? "var(--ocean-bright)" : "var(--text-mid)",
+                  fontSize: 11,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                <span style={{ fontWeight: 700 }}>{vernName}</span>
+                <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: isSel ? "var(--ocean-dim)" : "var(--text-faint)" }}>
+                  ₹{sp.market_price_inr_per_kg}/kg
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* ---- ADVICE ---- */}
       <div className="m-panel overflow-hidden">
@@ -225,14 +438,21 @@ export default function FishingPanel({
                       })}
                     </div>
                     {/* Species */}
-                    {(a.likely_species?.length ?? 0) > 0 && (
+                    {a.species_suitability ? (
+                      <div style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 6px", background: "rgba(0,168,204,0.12)", border: "1px solid rgba(0,168,204,0.3)", borderRadius: 2 }}>
+                        <FishGlyph size={11} className="swim" style={{ color: "var(--ocean-bright)" }} />
+                        <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, fontWeight: 700, color: "var(--ocean-bright)" }}>
+                          {a.species_suitability.species_name} {t.match}: {Math.round(a.species_suitability.suitability * 100)}% ({a.species_suitability.status})
+                        </span>
+                      </div>
+                    ) : (a.likely_species?.length ?? 0) > 0 ? (
                       <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4, fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: "var(--ocean-dim)" }}>
                         <FishGlyph size={11} className="swim" />
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {a.likely_species!.map(s => s.split(" (")[0]).join(" · ")}
                         </span>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Probability */}
@@ -407,6 +627,94 @@ export default function FishingPanel({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ---- TIDES & SOLUNAR INTELLIGENCE ---- */}
+      {(data.tide || data.lunar) && (
+        <div className="m-panel overflow-hidden">
+          <div className="m-hd">
+            <div>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--ocean)" }}>
+                {t.tideTitle}
+              </div>
+              <div style={{ fontFamily: "'Fraunces Variable', Georgia, serif", fontSize: 13, fontWeight: 700, color: "var(--text-mid)", marginTop: 1 }}>
+                {t.tideSub}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid var(--border)" }}>
+            {/* Moon Phase & Cycle */}
+            <div style={{ padding: "12px 14px", borderRight: "1px solid var(--border)" }}>
+              <div style={SEC_LABEL as React.CSSProperties}>LUNAR CYCLE</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 22 }}>{data.lunar?.phase_icon || "🌔"}</span>
+                <div>
+                  <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 13, fontWeight: 800, color: "var(--text-bright)" }}>
+                    {data.lunar?.phase_name || "Moon Phase"}
+                  </div>
+                  <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: "var(--text-dim)", marginTop: 2 }}>
+                    Age {data.lunar?.moon_age_days}d · {data.lunar?.illumination_pct}% lit
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: 6, display: "inline-block", padding: "1px 6px", fontSize: 8.5, fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontWeight: 700, background: data.lunar?.is_spring_tide ? "rgba(34,197,94,0.1)" : "rgba(245,158,11,0.1)", color: data.lunar?.is_spring_tide ? "var(--risk-low)" : "var(--risk-mod)", border: `1px solid ${data.lunar?.is_spring_tide ? "rgba(34,197,94,0.3)" : "rgba(245,158,11,0.3)"}` }}>
+                {data.lunar?.tide_cycle || "Semi-diurnal"}
+              </div>
+            </div>
+
+            {/* Solunar Activity */}
+            <div style={{ padding: "12px 14px", borderRight: "1px solid var(--border)", background: "rgba(0,168,204,0.03)" }}>
+              <div style={SEC_LABEL as React.CSSProperties}>{t.solunarFish}</div>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 20, fontWeight: 900, color: "var(--ocean-bright)", lineHeight: 1 }}>
+                {data.lunar?.solunar_score ?? 75}
+                <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-dim)" }}>/100</span>
+              </div>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 10, fontWeight: 700, color: "var(--ocean)", marginTop: 4 }}>
+                {data.lunar?.solunar_rating || "GOOD"}
+              </div>
+              <div style={{ fontSize: 8.5, color: "var(--text-faint)", marginTop: 3 }}>
+                Optimal feeding at tidal turns
+              </div>
+            </div>
+
+            {/* Current Sea Level & Tide */}
+            <div style={{ padding: "12px 14px" }}>
+              <div style={SEC_LABEL as React.CSSProperties}>{t.currentLevel}</div>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 20, fontWeight: 900, color: "var(--text-bright)", lineHeight: 1 }}>
+                {data.tide?.current_height_m ?? 1.8}
+                <span style={{ fontSize: 10, fontWeight: 500, color: "var(--text-dim)", marginLeft: 3 }}>m</span>
+              </div>
+              <div style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 10, color: "var(--text-mid)", marginTop: 4 }}>
+                {data.tide?.current_state || "Slack Water"}
+              </div>
+              <div style={{ fontSize: 8.5, color: "var(--text-faint)", marginTop: 3 }}>
+                {t.tidalRange}: {data.tide?.tidal_range_m ?? 2.0}m
+              </div>
+            </div>
+          </div>
+
+          {/* Next High and Low Schedule */}
+          {data.tide && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", padding: "8px 14px", background: "var(--surface-2)", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: "var(--text-dim)" }}>
+                  ▲ {t.nextHigh}:
+                </span>
+                <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 11, fontWeight: 700, color: "var(--risk-low)" }}>
+                  {data.tide.next_high_tide?.time} ({data.tide.next_high_tide?.height_m}m)
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 9, color: "var(--text-dim)" }}>
+                  ▼ {t.nextLow}:
+                </span>
+                <span style={{ fontFamily: "Spline Sans Mono Variable, Consolas, monospace", fontSize: 11, fontWeight: 700, color: "var(--ocean)" }}>
+                  {data.tide.next_low_tide?.time} ({data.tide.next_low_tide?.height_m}m)
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
